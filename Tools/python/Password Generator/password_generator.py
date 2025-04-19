@@ -1,4 +1,4 @@
-# Python tool for Secure Password Generation. Accepts input for character length and spits out a "secure" password that can be used quickly.and
+# Python tool for Secure Password Generation. Accepts input for character length and spits out a "secure" password that can be used quickly.
 
 # Author: Tilka
 
