@@ -1,5 +1,4 @@
 # SHA1 Hash Cracker
-
 import hashlib
 
 # Function to convert text to sha1
