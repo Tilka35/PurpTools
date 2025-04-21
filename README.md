@@ -7,6 +7,8 @@ Just in case, I take no responsibility for the misuse of any of the tools that a
 
 Use these tools at your own discretion and ensure you are always following strict security practices and have written permission before using these tools on networks or devices THAT ARE NOT YOUR OWN!
 
-I appreciate constructive criticism and feedback :)
+Most tools are a work-in-progress, and I am to improve on them as I continue to develop my skills and their functionality.
+
+I am making an honest commitment not to engage in vibe coding for the purpose of my learning, rather using LLMs for best practices, understanding and methodologies. I appreciate constructive criticism and feedback :)
 
 -Tilka
