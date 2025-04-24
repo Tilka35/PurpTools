@@ -1,5 +1,6 @@
 # This is a network scanner tool that uses Scapy which allows networks to be scanned for connected hosts. This is a work in progress.
 # This tool is inspired by stuffy24 on YT and aims to provide real-time insights into network performance.
+# https://thepythoncode.com/
 # Scapy official documentation: https://scapy.readthedocs.io/en/latest/installation.html
 # ARP Request will ask host for IP address, reply contains MAC address as well as the IP
 # Improved to scan ports using threads, using 200 threads to scan the network.
