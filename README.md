@@ -37,7 +37,7 @@ I am making an honest commitment not to engage in vibe coding for the purpose of
 
 # Coming Soon...
 
-# Walkthroughs
+# Pentest Walkthroughs
 
 # TryHackMe Writeups
 
