@@ -35,6 +35,16 @@ Most tools are a work-in-progress, and I am to improve on them as I continue to 
 
 I am making an honest commitment not to engage in vibe coding for the purpose of my learning, rather using LLMs and AI for learning about best practices, understanding how code works and developing new methodologies of using tools and inspiration for ideas. I appreciate constructive criticism and feedback :)
 
+# Coming Soon...
+
 # Walkthroughs
 
 # TryHackMe Writeups
+
+# Meshtastic
+
+# Flipper Zero
+
+# Nethunter
+
+# Home Labs
