@@ -37,7 +37,11 @@ I am making an honest commitment not to engage in vibe coding for the purpose of
 
 # Coming Soon...
 
-# Pentest Walkthroughs
+# Programming
+
+## Web Scraping with Python
+
+# Pentesting
 
 # TryHackMe Writeups
 
