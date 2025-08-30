@@ -48,7 +48,6 @@ This can be done reliably on any Raspberry Pi full board, given enough ram and p
 
 Out of the box, the OMV software has support for (S)FTP, SMB/CIFS, DAAP media server, RSync, and even features built-in support for Docker containers.
 ## Equipment List
-https://www.aliexpress.com/w/wholesale-raspberry-pi-pci-display.html?spm=a2g0o.productlist.search.0
 |Item         |Price  | Required |
 |-------------|-------|:--------:|
 |[Raspberry Pi 4 Model B 4GB RAM](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/?variant=raspberry-pi-4-model-b-4gb)|€47.27 - €61.95|Yes
