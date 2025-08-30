@@ -82,7 +82,7 @@ Wi-Fi or (ideally) Ethernet
 1. Connect RaPi to peripherals or PCI Display if required.
 
 2. Before installation, update and upgrade existing packages.
-code(sudo apt update)
+```sudo apt update```
 code(sudo apt upgrade)
 
 3. Run the preinstall script which will allow the ethernet connection to be persistent.
