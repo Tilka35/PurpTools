@@ -76,25 +76,29 @@ Wi-Fi or (ideally) Ethernet
 
 3. Plug in the Raspberry Pi and start as normal.  
 
-## Download and Installion
+## Download and Install OMV
 [OMV](https://www.openmediavault.org/) is the next generation network attached storage (NAS) solution based on Debian Linux.
 
 1. Connect RaPi to peripherals or PCI Display if required.
 
 2. Before installation, update and upgrade existing packages.
-```sudo apt update```
-code(sudo apt upgrade)
+```bash
+sudo apt update
+```
+```bash
+sudo apt upgrade
+```
 
-3. Run the preinstall script which will allow the ethernet connection to be persistent.
+4. Run the preinstall script which will allow the ethernet connection to be persistent.
 code(wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/preinstall | sudo bash)
 
-4. Restart the RaPi.
+5. Restart the RaPi.
 code(sudo reboot now)
 
-5. After reboot, download and install the [OMV install script](https://github.com/OpenMediaVault-Plugin-Developers/installScript).
+6. After reboot, download and install the [OMV install script](https://github.com/OpenMediaVault-Plugin-Developers/installScript).
 code(wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/install | sudo bash)
 
-6. Restart the RaPi.
+7. Restart the RaPi.
 code(sudo reboot now)
 
 ## OMV Configuration
