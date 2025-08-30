@@ -27,7 +27,7 @@ I am making an honest commitment not to engage in vibe coding for the purpose of
 
 # Programming
 
-## Web Scraping with Python
+## Web ScPing with Python
 
 # Pentesting
 
@@ -42,7 +42,7 @@ I am making an honest commitment not to engage in vibe coding for the purpose of
 # Home Labs
 
 ## OpenMediaVault Raspberry Pi 4B Fileserver
-Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, based on Linux and running on a RaPi 4B allows us to configure a private, at-home local network storage solution.
+Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, based on Linux and running on a RasPi 4B allows us to configure a private, at-home local network storage solution.
 
 This can be done reliably on any Raspberry Pi full board, given enough ram and processing capabilities. ***This writeup follows the Model 4B specifically.***
 
@@ -53,13 +53,13 @@ Out of the box, the OMV software has support for (S)FTP, SMB/CIFS, DAAP media se
 |[Raspberry Pi 4 Model B 4GB RAM](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/?variant=raspberry-pi-4-model-b-4gb)|€47.27 - €61.95|Yes
 |[MicroSD Card](https://www.aliexpress.com/w/wholesale-micro-sd-card.html?spm=a2g0o.productlist.search.0)|€2.27 - €13.01|Yes
 |Wi-Fi or (ideally) Ethernet|-  |Yes
-|[MicroSD Card Reader/Adapter](https://www.aliexpress.com/w/wholesale-micro-sd-card-reader.html?spm=a2g0o.productlist.search.0) |€0.87 - €7.08|No (If purchased in bundle with RaPi)
+|[MicroSD Card Reader/Adapter](https://www.aliexpress.com/w/wholesale-micro-sd-card-reader.html?spm=a2g0o.productlist.search.0) |€0.87 - €7.08|No (If purchased in bundle with Pi)
 |[Monitor and HDMI -> MicroHMDI Cable](https://www.aliexpress.com/w/wholesale-raspberry-pi-micro-hdmi-cable.html?spm=a2g0o.productlist.search.0)|€2.50 - €6.23|Yes
 |*(Optional)* [Raspberry Pi PCI Display](https://www.aliexpress.com/w/wholesale-raspberry-pi-pci-display.html?spm=a2g0o.productlist.search.0)|€10.00 - €20.10|No 
 
 
-## *(Optional)* Flashing RaPi OS on the SD Card
-**If you purchased your RaPi and SD Card separately, it will not be pre-flashed with RaPi OS**
+## *(Optional)* Flashing Pi OS on the SD Card
+**If you purchased your RasPi and SD Card separately, it will not be pre-flashed with Pi OS**
 
 1. Download the [Raspberry Pi Imager](https://www.raspberrypi.com/software/) for you system.
    <img width="1185" height="475" alt="image" src="https://github.com/user-attachments/assets/cc1145b6-cf20-4800-be7f-6c642c34bf0f" />
@@ -71,19 +71,24 @@ Out of the box, the OMV software has support for (S)FTP, SMB/CIFS, DAAP media se
 ## Download and Install OMV
 [OMV](https://www.openmediavault.org/) is the next generation network attached storage (NAS) solution based on Debian Linux.
 
-1. Connect RaPi to peripherals or PCI Display if required.
+1. Connect Pi to peripherals or PCI Display if required.
 
 2. Before installation, update and upgrade existing packages.
 ```bash
 sudo apt update && sudo apt upgrade -y
 ```
 
-4. Run the [preinstall script](https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/preinstall) which will allow the ethernet connection to be persistent.
+3. Install wget.
+```bash
+sudo apt install wget -y
+```
+
+5. Run the [preinstall script](https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/preinstall) which will allow the ethernet connection to be persistent.
 ```bash
 wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/preinstall | sudo bash
 ```
 
-5. Restart the RaPi.
+5. Restart the Pi.
 ```bash
 sudo reboot now
 ```
@@ -93,13 +98,13 @@ sudo reboot now
 wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/install | sudo bash
 ```
 
-8. Restart the RaPi.
+8. The Pi will automaticallt reboot. If not, restart the Pi.
 ```bash
 sudo reboot now
 ```
 
 ## OMV Configuration
-Once the device is rebooted and on, the IP address of the RaPi is used to access the OMV web interface and allows for configuring settings, such as setting up RAID configurations and selecting, wiping and formatting storage devices that are connected via the RaPi USB interfaces. 
+Once the device is rebooted and on, the IP address of the Pi is used to access the OMV web interface and allows for configuring settings, such as setting up RAID configurations and selecting, wiping and formatting storage devices that are connected via the Pi USB interfaces. 
 
 1. Check the IP address of the device.
 ```bash
@@ -117,7 +122,7 @@ hostname -I
    The dashboard will be empty, but you can select what you need from the check box options, and it will load up.
 
 ## Formatting and Setting Up Disks and Filesystems   
-1. In *Storage -> Disks* you can select the disks that are connected to the RaPi and format them if need be. Either way, there will be another step after this.
+1. In *Storage -> Disks* you can select the disks that are connected to the Pi and format them if need be. Either way, there will be another step after this.
 
 2. Go to *Storage -> File Systems* and select *Mount an Existing Filesystem* to add a Filesystem. Select the appropriate Disk and click Save. *Make sure to apply changes in the top right after each step!*
 
@@ -132,5 +137,8 @@ hostname -I
 3. In *Services -> SMB/CIFS -> Settings*, enable SMB3. Ensure it is browsable and "Enabled" is checked.
 
 4. Your Share should now be accessible from the Network! Test this by opening the File Explorer and entering *\\'IP_of_Pi'\\'Share_Name'*.
+
+## YouTube Tutorial
+[![Building a NAS with a Raspberry Pi and OpenMediaVault](https://www.youtube.com/watch?v=LxsowTcNmY4)
 
 # Additional Reading
