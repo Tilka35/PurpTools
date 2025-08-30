@@ -47,17 +47,16 @@ Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, bas
 This can be done reliably on any Raspberry Pi full board, given enough ram and processing capabilities. ***This writeup follows the Model 4B specifically.***
 
 Out of the box, the OMV software has support for (S)FTP, SMB/CIFS, DAAP media server, RSync, and even features built-in support for Docker containers.
-
 ## Equipment List
-
+https://www.aliexpress.com/w/wholesale-raspberry-pi-pci-display.html?spm=a2g0o.productlist.search.0
 |Item         |Price  | Required |
 |-------------|-------|:--------:|
 |[Raspberry Pi 4 Model B 4GB RAM](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/?variant=raspberry-pi-4-model-b-4gb)|€47.27 - €61.95|Yes
-|[MicroSD Card]([https://www.amazon.co.uk/Vanja-Adapter-Portable-Memory-Reader/dp/B00W02VHM6?adgrpid=1178677363709686&dib=eyJ2IjoiMSJ9.HopFPG_9N9LJWbvXe4m5eeYMAPtxRBx9gvfm8hZn8CR9GNccdyqoUzlZKw_iFI14KfnBGOmUUtCw0p7j04yQBrfZrSMkP81pi-odcv-_SUUmkLd_AOmDO6-24eHnKQ7vUHkTsgaxbcBGYJcA8VARM0ZQk5W0zg3IvF9-8N2g5BQqzeiau0iBvfx6ciB_IXKiMShRScCqR3ikUFZxQvvHM0Ptxm3CWjFzOgE_uIEp74Y.toYWqy_tRWTs8Wul5m48p3h1co808yj0VOcSdZ0djz4&dib_tag=se&hvadid=73667537917398&hvbmt=be&hvdev=c&hvlocphy=150385&hvnetw=s&hvqmt=e&hvtargid=kwd-73667470802167%3Aloc-92&hydadcr=3983_2133757&keywords=micro-sd%2Bcard%2Badapter&mcid=9e6b31781fa4393fa6fb817a4a0ae669&qid=1756552100&sr=8-6&th=1](https://www.amazon.co.uk/SanDisk-128GB-microSDXC-adapter-Performance/dp/B0B7NTY2S6?crid=P0PFIWU3GQE8&dib=eyJ2IjoiMSJ9.n4R-Dt4oBYQRkM6m0S8mH6nmEEe2IJreJiTPetShc9_uO8JH4wC62LLibnyecqBE0_AhZthyvV7I4b_iYBH8HDuyJwweLnqUIne8MFwoDTUtSIG1-OmRdfVDVvcREunl3NF5Bh7hFju9pj7p4tEyozdYQ80mOIDIDPmTZJb9DM3jGO1JKuRwHmD7j9g9D2bBnjnzD5wWaSMo6aosEjPq1obv3Wtt_34Vcb81SgFrrbQ.vNJsZqX7KMVoz2-IS9D13UQF85RQB6R4Es4sdzbHlYA&dib_tag=se&keywords=micro-sd+card&qid=1756558191&sprefix=micro-sd+car%2Caps%2C91&sr=8-4))|€2.27 - €13.01|Yes
+|[MicroSD Card](https://www.aliexpress.com/w/wholesale-micro-sd-card.html?spm=a2g0o.productlist.search.0)|€2.27 - €13.01|Yes
 |Wi-Fi or (ideally) Ethernet|-  |Yes
-|[MicroSD Card Reader/Adapter](https://www.amazon.co.uk/Vanja-Adapter-Portable-Memory-Reader/dp/B00W02VHM6?adgrpid=1178677363709686&dib=eyJ2IjoiMSJ9.HopFPG_9N9LJWbvXe4m5eeYMAPtxRBx9gvfm8hZn8CR9GNccdyqoUzlZKw_iFI14KfnBGOmUUtCw0p7j04yQBrfZrSMkP81pi-odcv-_SUUmkLd_AOmDO6-24eHnKQ7vUHkTsgaxbcBGYJcA8VARM0ZQk5W0zg3IvF9-8N2g5BQqzeiau0iBvfx6ciB_IXKiMShRScCqR3ikUFZxQvvHM0Ptxm3CWjFzOgE_uIEp74Y.toYWqy_tRWTs8Wul5m48p3h1co808yj0VOcSdZ0djz4&dib_tag=se&hvadid=73667537917398&hvbmt=be&hvdev=c&hvlocphy=150385&hvnetw=s&hvqmt=e&hvtargid=kwd-73667470802167%3Aloc-92&hydadcr=3983_2133757&keywords=micro-sd%2Bcard%2Badapter&mcid=9e6b31781fa4393fa6fb817a4a0ae669&qid=1756552100&sr=8-6&th=1) |€0.87 - €7.08|No (If purchased in bundle with RaPi)
-|*(Optional)* [Raspberry Pi PCI Display](https://www.amazon.co.uk/Aurevita-Raspberry-Pi-Screen-Touchscreen/dp/B0DQ869VHP/ref=sr_1_12?crid=10P68J153HLQF&dib=eyJ2IjoiMSJ9.fWRbCjqI1Q3nkOnwOAR3eHgZXlkhj-ydGGQL_0xw3vTHkGMjXfSQsOUvJuGwVD1tsY7kLhgJvVYtbCIf7z5Y_U4YPR-lo5FIyetk3CMDHyP85lXa2jhAIgynsa_Ku6n8_C_j-AFHcmbn30euYxNq2sIyLrp_rY-JioVBnGu5WM5hO81MmQmsmaGmpuF64tydNG89t5iqS70SbgQ4zLILIDVy5VrVlGVpeboQV-IvP4A.yS_dDrS8ysfjAG01WF2eIa86EtS9L9D93tXS5vAKP54&dib_tag=se&keywords=raspberry+pi+4+display&qid=1756552349&sprefix=raspberry+pi+4+display%2Caps%2C82&sr=8-12)|€10.00 - €20.10|No 
-|*(Optional)* Monitor and HDMI -> MicroHMDI Cable|€2.50 - €6.23|No
+|[MicroSD Card Reader/Adapter](https://www.aliexpress.com/w/wholesale-micro-sd-card-reader.html?spm=a2g0o.productlist.search.0) |€0.87 - €7.08|No (If purchased in bundle with RaPi)
+|*(Optional)* [Raspberry Pi PCI Display](https://www.aliexpress.com/w/wholesale-raspberry-pi-pci-display.html?spm=a2g0o.productlist.search.0)|€10.00 - €20.10|No 
+|*(Optional)* [Monitor and HDMI -> MicroHMDI Cable](https://www.aliexpress.com/w/wholesale-raspberry-pi-micro-hdmi-cable.html?spm=a2g0o.productlist.search.0)|€2.50 - €6.23|No
 
 
 ## *(Optional)* Flashing RaPi OS on the SD Card
