@@ -119,7 +119,7 @@ hostname -I
 ## Formatting and Setting Up Disks and Filesystems   
 1. In *Storage -> Disks* you can select the disks that are connected to the RaPi and format them if need be. Either way, there will be another step after this.
 
-2. Go to *Storage -> File Systems* and select *Mount an Existiing Filesystem* to add a Filesystem. Select the appropriate Disk and click Save. *Make sure to apply changes in the top right after each step!*
+2. Go to *Storage -> File Systems* and select *Mount an Existing Filesystem* to add a Filesystem. Select the appropriate Disk and click Save. *Make sure to apply changes in the top right after each step!*
 
 3. After this is done, the Disks should be visible.
    <img width="1555" height="428" alt="image" src="https://github.com/user-attachments/assets/bea81247-18ac-4676-9bf5-49e0e5db024b" />
