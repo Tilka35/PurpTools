@@ -1,18 +1,5 @@
 <img width="600" height="200" alt="github-header" src="https://github.com/user-attachments/assets/475c67df-cff3-4771-b01d-bc7c1f9c806b" />
 
-```
-+========================================================+    Written by @Tilka
-|                                                        |    With inspiration from various sources.
-|   ____                     _____              _        |    
-|  |  _ \  _   _  _ __  _ __|_   _|___    ___  | | ___   |
-|  | |_) || | | || '__|| '_ \ | | / _ \  / _ \ | |/ __|  |
-|  |  __/ | |_| || |   | |_) || || (_) || (_) || |\__ \  |
-|  |_|     \__,_||_|   | .__/ |_| \___/  \___/ |_||___/  |
-|                      |_|                               |
-|                                                        |
-+========================================================+
-```
-
 # ⚠️ Ethical Usage Disclaimer ⚠️
 
 This repository is intended **solely for ethical cybersecurity research, educational purposes, and authorized penetration testing**. The tools and scripts provided herein **must never be used for unauthorized access, exploitation, or any form of illegal activity**. 
