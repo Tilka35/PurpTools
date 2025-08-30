@@ -62,7 +62,7 @@ Wi-Fi or (ideally) Ethernet
 
 2. Plug your MicroSD Card into the adapter and the adapter into your device. Open the Pi Imager and select [Raspberry Pi OS Lite](https://www.raspberrypi.com/software/operating-systems/). Review settings and click Next. Do not apply OS customisations.
 
-3. Plug in the Raspberry Pi and start as normal.  
+3. Wait until installation finishes, then power on the Raspberry Pi.  
 
 ## Download and Install OMV
 [OMV](https://www.openmediavault.org/) is the next generation network attached storage (NAS) solution based on Debian Linux.
@@ -71,13 +71,10 @@ Wi-Fi or (ideally) Ethernet
 
 2. Before installation, update and upgrade existing packages.
 ```bash
-sudo apt update
-```
-```bash
-sudo apt upgrade
+sudo apt update && sudo apt upgrade -y
 ```
 
-4. Run the preinstall script which will allow the ethernet connection to be persistent.
+4. Run the [preinstall script](https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/preinstall) which will allow the ethernet connection to be persistent.
 ```bash
 wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/preinstall | sudo bash
 ```
@@ -98,7 +95,7 @@ sudo reboot now
 ```
 
 ## OMV Configuration
-The IP address of the RaPi is used to access the OMV web interface. 
+Once the device is rebooted and on, the IP address of the RaPi is used to access the OMV web interface and allows for configuring settings, such as setting up RAID configurations and selecting, wiping and formatting storage devices that are connected via the RaPi USB interfaces. 
 
 1. Check the IP address of the device.
 ```bash
@@ -107,6 +104,28 @@ hostname -I
 
 2. Enter the address in your local browser to access the web interface and login. The default username is code(admin), and the default password is code(openmediavault). *Change these as soon as you have logged in*
 
-3. 
+3. If further configuration or access is required, you can log in using SSH with [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html), as this will be set up by default when you install OMV.
+
+4. Log into the web interface, you will be taken to the dashboard.
+   <img width="373" height="622" alt="image" src="https://github.com/user-attachments/assets/df9a6cbe-2be3-4f92-9b27-e8a709760e35" />
+
+   The dashboard will be empty, but you can select what you need from the check box options, and it will load up.
+
+## Formatting and Setting Up Disks and Filesystems   
+1. In *Storage -> Disks* you can select the disks that are connected to the RaPi and format them if need be. Either way, there will be another step after this.
+
+2. Go to *Storage -> File Systems* and select *Mount an Existiing Filesystem* to add a Filesystem. Select the appropriate Disk and click Save. *Make sure to apply changes in the top right after each step!*
+
+3. After this is done, the Disks should be visible.
+   <img width="1555" height="428" alt="image" src="https://github.com/user-attachments/assets/bea81247-18ac-4676-9bf5-49e0e5db024b" />
+
+## Setting up SMB/CIFS for File Sharing
+1. Go to *Services -> SMB/CIFS -> Shares* and click "Create a new Share", which will be accessible by machines on the network.
+
+2. Give your Share a name and Select the File System, and Assign appropriate Permissions. Save Changes.
+
+3. In *Services -> SMB/CIFS -> Settings*, enable SMB3. Ensure it is browsable and "Enabled" is checked.
+
+4. Your Share should now be accessible from the Network! Test this by opening the File Explorer and entering *\\'IP_of_Pi'\'Share_Name'*.
 
 # Additional Reading
