@@ -42,7 +42,7 @@ I am making an honest commitment not to engage in vibe coding for the purpose of
 # Home Labs
 
 ## OpenMediaVault Raspberry Pi 4B Fileserver
-Installing a lightweight ditribution of OpenMediaVault, based on Linux on a RaPi 4B allows us to configure a private, at-home local cloud storage solution.
+Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, based on Linux and running on a RaPi 4B allows us to configure a private, at-home local network storage solution.
 
 This can be done reliably on any Raspberry Pi full board, given enough ram and processing capabilities. ***This writeup follows the Model 4B specifically.***
 
