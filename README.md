@@ -47,12 +47,16 @@ Installing a lightweight ditribution of OpenMediaVault, based on Linux on a RaPi
 Out of the box, the OMV software has support for (S)FTP, SMB/CIFS, DAAP media server, RSync, and even features built-in support for Docker containers.
 
 **Equipment List**
-Raspberry Pi
-[MicroSD Card](https://www.amazon.co.uk/Vanja-Adapter-Portable-Memory-Reader/dp/B00W02VHM6?adgrpid=1178677363709686&dib=eyJ2IjoiMSJ9.HopFPG_9N9LJWbvXe4m5eeYMAPtxRBx9gvfm8hZn8CR9GNccdyqoUzlZKw_iFI14KfnBGOmUUtCw0p7j04yQBrfZrSMkP81pi-odcv-_SUUmkLd_AOmDO6-24eHnKQ7vUHkTsgaxbcBGYJcA8VARM0ZQk5W0zg3IvF9-8N2g5BQqzeiau0iBvfx6ciB_IXKiMShRScCqR3ikUFZxQvvHM0Ptxm3CWjFzOgE_uIEp74Y.toYWqy_tRWTs8Wul5m48p3h1co808yj0VOcSdZ0djz4&dib_tag=se&hvadid=73667537917398&hvbmt=be&hvdev=c&hvlocphy=150385&hvnetw=s&hvqmt=e&hvtargid=kwd-73667470802167%3Aloc-92&hydadcr=3983_2133757&keywords=micro-sd%2Bcard%2Badapter&mcid=9e6b31781fa4393fa6fb817a4a0ae669&qid=1756552100&sr=8-6&th=1)
-[MicroSD Card Reader/Adapter](https://www.amazon.co.uk/Vanja-Adapter-Portable-Memory-Reader/dp/B00W02VHM6?adgrpid=1178677363709686&dib=eyJ2IjoiMSJ9.HopFPG_9N9LJWbvXe4m5eeYMAPtxRBx9gvfm8hZn8CR9GNccdyqoUzlZKw_iFI14KfnBGOmUUtCw0p7j04yQBrfZrSMkP81pi-odcv-_SUUmkLd_AOmDO6-24eHnKQ7vUHkTsgaxbcBGYJcA8VARM0ZQk5W0zg3IvF9-8N2g5BQqzeiau0iBvfx6ciB_IXKiMShRScCqR3ikUFZxQvvHM0Ptxm3CWjFzOgE_uIEp74Y.toYWqy_tRWTs8Wul5m48p3h1co808yj0VOcSdZ0djz4&dib_tag=se&hvadid=73667537917398&hvbmt=be&hvdev=c&hvlocphy=150385&hvnetw=s&hvqmt=e&hvtargid=kwd-73667470802167%3Aloc-92&hydadcr=3983_2133757&keywords=micro-sd%2Bcard%2Badapter&mcid=9e6b31781fa4393fa6fb817a4a0ae669&qid=1756552100&sr=8-6&th=1)
-*(Optional)* [Raspberry Pi PCI Display](https://www.amazon.co.uk/Aurevita-Raspberry-Pi-Screen-Touchscreen/dp/B0DQ869VHP/ref=sr_1_12?crid=10P68J153HLQF&dib=eyJ2IjoiMSJ9.fWRbCjqI1Q3nkOnwOAR3eHgZXlkhj-ydGGQL_0xw3vTHkGMjXfSQsOUvJuGwVD1tsY7kLhgJvVYtbCIf7z5Y_U4YPR-lo5FIyetk3CMDHyP85lXa2jhAIgynsa_Ku6n8_C_j-AFHcmbn30euYxNq2sIyLrp_rY-JioVBnGu5WM5hO81MmQmsmaGmpuF64tydNG89t5iqS70SbgQ4zLILIDVy5VrVlGVpeboQV-IvP4A.yS_dDrS8ysfjAG01WF2eIa86EtS9L9D93tXS5vAKP54&dib_tag=se&keywords=raspberry+pi+4+display&qid=1756552349&sprefix=raspberry+pi+4+display%2Caps%2C82&sr=8-12)
-*(Optional)* Monitor and HDMI -> MicroHMDI Cable
-Wi-Fi or (ideally) Ethernet
+
+|Item         |Price  | Required |
+|-------------|-------|:--------:|
+|Raspberry Pi |       |Yes
+|[MicroSD Card](https://www.amazon.co.uk/Vanja-Adapter-Portable-Memory-Reader/dp/B00W02VHM6?adgrpid=1178677363709686&dib=eyJ2IjoiMSJ9.HopFPG_9N9LJWbvXe4m5eeYMAPtxRBx9gvfm8hZn8CR9GNccdyqoUzlZKw_iFI14KfnBGOmUUtCw0p7j04yQBrfZrSMkP81pi-odcv-_SUUmkLd_AOmDO6-24eHnKQ7vUHkTsgaxbcBGYJcA8VARM0ZQk5W0zg3IvF9-8N2g5BQqzeiau0iBvfx6ciB_IXKiMShRScCqR3ikUFZxQvvHM0Ptxm3CWjFzOgE_uIEp74Y.toYWqy_tRWTs8Wul5m48p3h1co808yj0VOcSdZ0djz4&dib_tag=se&hvadid=73667537917398&hvbmt=be&hvdev=c&hvlocphy=150385&hvnetw=s&hvqmt=e&hvtargid=kwd-73667470802167%3Aloc-92&hydadcr=3983_2133757&keywords=micro-sd%2Bcard%2Badapter&mcid=9e6b31781fa4393fa6fb817a4a0ae669&qid=1756552100&sr=8-6&th=1) |   |Yes
+|Wi-Fi or (ideally) Ethernet|  |Yes
+|[MicroSD Card Reader/Adapter](https://www.amazon.co.uk/Vanja-Adapter-Portable-Memory-Reader/dp/B00W02VHM6?adgrpid=1178677363709686&dib=eyJ2IjoiMSJ9.HopFPG_9N9LJWbvXe4m5eeYMAPtxRBx9gvfm8hZn8CR9GNccdyqoUzlZKw_iFI14KfnBGOmUUtCw0p7j04yQBrfZrSMkP81pi-odcv-_SUUmkLd_AOmDO6-24eHnKQ7vUHkTsgaxbcBGYJcA8VARM0ZQk5W0zg3IvF9-8N2g5BQqzeiau0iBvfx6ciB_IXKiMShRScCqR3ikUFZxQvvHM0Ptxm3CWjFzOgE_uIEp74Y.toYWqy_tRWTs8Wul5m48p3h1co808yj0VOcSdZ0djz4&dib_tag=se&hvadid=73667537917398&hvbmt=be&hvdev=c&hvlocphy=150385&hvnetw=s&hvqmt=e&hvtargid=kwd-73667470802167%3Aloc-92&hydadcr=3983_2133757&keywords=micro-sd%2Bcard%2Badapter&mcid=9e6b31781fa4393fa6fb817a4a0ae669&qid=1756552100&sr=8-6&th=1) |  |No (If purchased in bundle with RaPi)
+|*(Optional)* [Raspberry Pi PCI Display](https://www.amazon.co.uk/Aurevita-Raspberry-Pi-Screen-Touchscreen/dp/B0DQ869VHP/ref=sr_1_12?crid=10P68J153HLQF&dib=eyJ2IjoiMSJ9.fWRbCjqI1Q3nkOnwOAR3eHgZXlkhj-ydGGQL_0xw3vTHkGMjXfSQsOUvJuGwVD1tsY7kLhgJvVYtbCIf7z5Y_U4YPR-lo5FIyetk3CMDHyP85lXa2jhAIgynsa_Ku6n8_C_j-AFHcmbn30euYxNq2sIyLrp_rY-JioVBnGu5WM5hO81MmQmsmaGmpuF64tydNG89t5iqS70SbgQ4zLILIDVy5VrVlGVpeboQV-IvP4A.yS_dDrS8ysfjAG01WF2eIa86EtS9L9D93tXS5vAKP54&dib_tag=se&keywords=raspberry+pi+4+display&qid=1756552349&sprefix=raspberry+pi+4+display%2Caps%2C82&sr=8-12) |  |No 
+|*(Optional)* Monitor and HDMI -> MicroHMDI Cable|  |No
+
 
 ## *(Optional)* Flashing RaPi OS on the SD Card
 **If you purchased your RaPi and SD Card separately, it will not be pre-flashed with RaPi OS**
