@@ -111,6 +111,7 @@ hostname -I
 3. If further configuration or access is required, you can log in using SSH with [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html), as this will be set up by default when you install OMV.
 
 4. Log into the web interface, you will be taken to the dashboard.
+
    <img width="373" height="622" alt="image" src="https://github.com/user-attachments/assets/df9a6cbe-2be3-4f92-9b27-e8a709760e35" />
 
    The dashboard will be empty, but you can select what you need from the check box options, and it will load up.
