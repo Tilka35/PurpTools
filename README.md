@@ -53,4 +53,58 @@ I am making an honest commitment not to engage in vibe coding for the purpose of
 
 # Home Labs
 
+## OpenMediaVault Raspberry Pi Fileserver
+Installing a lightweight ditribution of OpenMediaVault, based on Linux on a RaPi 4B allows us to configure a private, at-home local cloud storage solution.
+
+Out of the box, the OMV software has support for (S)FTP, SMB/CIFS, DAAP media server, RSync, and even features built-in support for Docker containers.
+
+**Equipment List**
+Raspberry Pi
+[MicroSD Card](https://www.amazon.co.uk/Vanja-Adapter-Portable-Memory-Reader/dp/B00W02VHM6?adgrpid=1178677363709686&dib=eyJ2IjoiMSJ9.HopFPG_9N9LJWbvXe4m5eeYMAPtxRBx9gvfm8hZn8CR9GNccdyqoUzlZKw_iFI14KfnBGOmUUtCw0p7j04yQBrfZrSMkP81pi-odcv-_SUUmkLd_AOmDO6-24eHnKQ7vUHkTsgaxbcBGYJcA8VARM0ZQk5W0zg3IvF9-8N2g5BQqzeiau0iBvfx6ciB_IXKiMShRScCqR3ikUFZxQvvHM0Ptxm3CWjFzOgE_uIEp74Y.toYWqy_tRWTs8Wul5m48p3h1co808yj0VOcSdZ0djz4&dib_tag=se&hvadid=73667537917398&hvbmt=be&hvdev=c&hvlocphy=150385&hvnetw=s&hvqmt=e&hvtargid=kwd-73667470802167%3Aloc-92&hydadcr=3983_2133757&keywords=micro-sd%2Bcard%2Badapter&mcid=9e6b31781fa4393fa6fb817a4a0ae669&qid=1756552100&sr=8-6&th=1)
+[MicroSD Card Reader/Adapter](https://www.amazon.co.uk/Vanja-Adapter-Portable-Memory-Reader/dp/B00W02VHM6?adgrpid=1178677363709686&dib=eyJ2IjoiMSJ9.HopFPG_9N9LJWbvXe4m5eeYMAPtxRBx9gvfm8hZn8CR9GNccdyqoUzlZKw_iFI14KfnBGOmUUtCw0p7j04yQBrfZrSMkP81pi-odcv-_SUUmkLd_AOmDO6-24eHnKQ7vUHkTsgaxbcBGYJcA8VARM0ZQk5W0zg3IvF9-8N2g5BQqzeiau0iBvfx6ciB_IXKiMShRScCqR3ikUFZxQvvHM0Ptxm3CWjFzOgE_uIEp74Y.toYWqy_tRWTs8Wul5m48p3h1co808yj0VOcSdZ0djz4&dib_tag=se&hvadid=73667537917398&hvbmt=be&hvdev=c&hvlocphy=150385&hvnetw=s&hvqmt=e&hvtargid=kwd-73667470802167%3Aloc-92&hydadcr=3983_2133757&keywords=micro-sd%2Bcard%2Badapter&mcid=9e6b31781fa4393fa6fb817a4a0ae669&qid=1756552100&sr=8-6&th=1)
+*(Optional)* [Raspberry Pi PCI Display](https://www.amazon.co.uk/Aurevita-Raspberry-Pi-Screen-Touchscreen/dp/B0DQ869VHP/ref=sr_1_12?crid=10P68J153HLQF&dib=eyJ2IjoiMSJ9.fWRbCjqI1Q3nkOnwOAR3eHgZXlkhj-ydGGQL_0xw3vTHkGMjXfSQsOUvJuGwVD1tsY7kLhgJvVYtbCIf7z5Y_U4YPR-lo5FIyetk3CMDHyP85lXa2jhAIgynsa_Ku6n8_C_j-AFHcmbn30euYxNq2sIyLrp_rY-JioVBnGu5WM5hO81MmQmsmaGmpuF64tydNG89t5iqS70SbgQ4zLILIDVy5VrVlGVpeboQV-IvP4A.yS_dDrS8ysfjAG01WF2eIa86EtS9L9D93tXS5vAKP54&dib_tag=se&keywords=raspberry+pi+4+display&qid=1756552349&sprefix=raspberry+pi+4+display%2Caps%2C82&sr=8-12)
+*(Optional)* Monitor and HDMI -> MicroHMDI Cable
+Wi-Fi or (ideally) Ethernet
+
+## *(Optional)* Flashing RaPi OS on the SD Card
+**If you purchased your RaPi and SD Card separately, it will not be pre-flashed with RaPi OS**
+
+1. Download the [Raspberry Pi Imager](https://www.raspberrypi.com/software/) for you system.
+   <img width="1185" height="475" alt="image" src="https://github.com/user-attachments/assets/cc1145b6-cf20-4800-be7f-6c642c34bf0f" />
+
+2. Plug your MicroSD Card into the adapter and the adapter into your device. Open the Pi Imager and select [Raspberry Pi OS Lite](https://www.raspberrypi.com/software/operating-systems/). Review settings and click Next. Do not apply OS customisations.
+
+3. Plug in the Raspberry Pi and start as normal.  
+
+## Download and Installion
+[OMV](https://www.openmediavault.org/) is the next generation network attached storage (NAS) solution based on Debian Linux.
+
+1. Connect RaPi to peripherals or PCI Display if required.
+
+2. Before installation, update and upgrade existing packages.
+code(sudo apt update)
+code(sudo apt upgrade)
+
+3. Run the preinstall script which will allow the ethernet connection to be persistent.
+code(wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/preinstall | sudo bash)
+
+4. Restart the RaPi.
+code(sudo reboot now)
+
+5. After reboot, download and install the [OMV install script](https://github.com/OpenMediaVault-Plugin-Developers/installScript).
+code(wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/install | sudo bash)
+
+6. Restart the RaPi.
+code(sudo reboot now)
+
+## OMV Configuration
+The IP address of the RaPi is used to access the OMV web interface. 
+
+1. Check the IP address of the device.
+code(hostname -I)
+
+2. Enter the address in your local browser to access the web interface and login. The default username is code(admin), and the default password is code(openmediavault). *Change these as soon as you have logged in*
+
+3. 
+
 # Additional Reading
