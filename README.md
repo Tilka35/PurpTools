@@ -131,6 +131,6 @@ hostname -I
 
 3. In *Services -> SMB/CIFS -> Settings*, enable SMB3. Ensure it is browsable and "Enabled" is checked.
 
-4. Your Share should now be accessible from the Network! Test this by opening the File Explorer and entering *\\'IP_of_Pi'\'Share_Name'*.
+4. Your Share should now be accessible from the Network! Test this by opening the File Explorer and entering *\\'IP_of_Pi'\\'Share_Name'*.
 
 # Additional Reading
