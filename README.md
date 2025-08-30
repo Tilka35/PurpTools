@@ -139,6 +139,7 @@ hostname -I
 4. Your Share should now be accessible from the Network! Test this by opening the File Explorer and entering *\\'IP_of_Pi'\\'Share_Name'*.
 
 ## YouTube Tutorial
-[![Building a NAS with a Raspberry Pi and OpenMediaVault](https://www.youtube.com/watch?v=LxsowTcNmY4)
+[![Watch the video](https://img.youtube.com/vi/_5tFXJQIzi4/0.jpg)](https://www.youtube.com/watch?v=_5tFXJQIzi4)
+[![Building a NAS with a Raspberry Pi and OpenMediaVault](https://img.youtube.com/vi/LxsowTcNmY4/0.jpg)](https://www.youtube.com/watch?v=LxsowTcNmY4&t=745s)
 
 # Additional Reading
