@@ -90,22 +90,32 @@ sudo apt upgrade
 ```
 
 4. Run the preinstall script which will allow the ethernet connection to be persistent.
-code(wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/preinstall | sudo bash)
+```bash
+wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/preinstall | sudo bash
+```
 
 5. Restart the RaPi.
-code(sudo reboot now)
+```bash
+sudo reboot now
+```
 
 6. After reboot, download and install the [OMV install script](https://github.com/OpenMediaVault-Plugin-Developers/installScript).
-code(wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/install | sudo bash)
+```bash
+wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/install | sudo bash
+```
 
-7. Restart the RaPi.
-code(sudo reboot now)
+8. Restart the RaPi.
+```bash
+sudo reboot now
+```
 
 ## OMV Configuration
 The IP address of the RaPi is used to access the OMV web interface. 
 
 1. Check the IP address of the device.
-code(hostname -I)
+```bash
+hostname -I
+```
 
 2. Enter the address in your local browser to access the web interface and login. The default username is code(admin), and the default password is code(openmediavault). *Change these as soon as you have logged in*
 
