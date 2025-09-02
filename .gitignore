@@ -1,3 +1,8 @@
 keyboard/
 .idea
 .venv
+*.txt
+**.txt
+**/phrack*/
+phrack/*.tar.gz
+*.tar.gz
