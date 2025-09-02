@@ -1,3 +1,4 @@
 keyboard/
 .idea
 .venv
+*.txt
