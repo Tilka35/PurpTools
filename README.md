@@ -218,7 +218,8 @@ Once the [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) is
 - `<HOME_SUBNET>`: your home network range, e.g. `192.168.x.0/24`
 - `<PROXMOX_IP>`: the IP of your Proxmox host
 - `<TAILSCALE_CT_IP>`: the IP of the Tailscale container
-- `<OMV_IP>`: the IP of your OpenMediaVault VM
+- `<OMV_IP>`: the LAN IP of your OpenMediaVault VM
+- `<OMV_TAILSCALE_IP>`: OMV's `100.x.y.z` Tailscale address (only if Tailscale is installed on OMV)
 - `<ROUTER_IP>`: your router's IP
 
 ## Approve the Route
@@ -256,15 +257,20 @@ By default, every device on a tailnet can reach every other device, and everythi
   "tagOwners": {
     "tag:phone": ["autogroup:admin"]
   },
+  "hosts": {
+    "omv": "<OMV_TAILSCALE_IP>"
+  },
   "acls": [
-    // Phone: Proxmox UI and OMV (web UI + SMB)
+    // Phone: Proxmox UI and OMV (web UI + SMB), over the LAN route and directly
     {
       "action": "accept",
       "src": ["tag:phone"],
       "dst": [
         "<PROXMOX_IP>:8006",
         "<OMV_IP>:80",
-        "<OMV_IP>:445"
+        "<OMV_IP>:445",
+        "omv:80",
+        "omv:445"
       ]
     },
     // All other (untagged) devices: full access
@@ -280,12 +286,15 @@ By default, every device on a tailnet can reach every other device, and everythi
       "accept": [
         "<PROXMOX_IP>:8006",
         "<OMV_IP>:80",
-        "<OMV_IP>:445"
+        "<OMV_IP>:445",
+        "omv:80",
+        "omv:445"
       ],
       "deny": [
         "<ROUTER_IP>:80",
         "<TAILSCALE_CT_IP>:22",
-        "<TAILSCALE_CT_IP>:8080"
+        "<TAILSCALE_CT_IP>:8080",
+        "omv:22"
       ]
     }
   ]
@@ -294,16 +303,20 @@ By default, every device on a tailnet can reach every other device, and everythi
 
 3. Under *Machines*, click the three dots next to the phone, select *Edit ACL tags*, and add `tag:phone`.
 
-*Use plain IP addresses in the policy, without a `/24` suffix. A suffix is read as a whole network and would open up far more than one device.*
+*Notes:*
+- *The `hosts` alias and the `omv:` entries are only needed if Tailscale is installed on OMV. If it is not, delete them and keep the `<OMV_IP>` entries.*
+- *Use plain IP addresses in the policy, without a `/24` suffix. A suffix is read as a whole network and would open up far more than one device.*
+- *Anything not listed in the phone rule is blocked, so a new service needs a new entry.*
+- *The second rule gives every untagged device signed in to your account full access. This is a deliberate convenience for a small home setup. If you want tighter control, replace `autogroup:member` with your own account email and list only the ports you use.*
 
 ## Testing the ACLs
-1. **Built-in tests:** the `tests` block above is checked every time the policy is saved. If a test fails, the console refuses to save, so a mistake cannot take effect.
+1. **Built-in tests:** the `tests` block above is checked every time the policy is saved. If a test fails, the console refuses to save, so a mistake cannot take effect. The tests do not verify that the `hosts` alias holds the correct IP, so compare it against `tailscale ip -4` on OMV.
 
 2. **Preview rules:** on the *Access controls* page, use *Preview rules*, pick the phone, and check what it can reach.
 
-3. **Real-world test:** on mobile data with Tailscale on, `https://<PROXMOX_IP>:8006` and `http://<OMV_IP>` should load, while something not in the rules (e.g. `http://<ROUTER_IP>`) should time out.
+3. **Real-world test:** on mobile data with Tailscale on, `https://<PROXMOX_IP>:8006` and `http://<OMV_IP>` (or `http://omv`) should load, while something not in the rules (e.g. `http://<ROUTER_IP>`) should time out.
 
-4. **Safety net:** leave your PC or laptop untagged so it keeps full access. If a policy change locks the phone out, fix it from there. The console also keeps a policy history.
+4. **Recovery:** the admin console is a browser page and does not depend on tailnet access, and it keeps a policy history. If a change locks the phone out, restore the previous policy from there or from your backup copy.
 
 *When adding a new service, add its IP and port to the phone's rule and a matching `accept` line to the `tests` block (e.g. `:3389` for Remote Desktop).*
 
