@@ -48,6 +48,11 @@ Running Tailscale in a lightweight LXC container on Proxmox lets it act as a *su
 
 *Note: the Tailscale clients are open source, but the coordination server is proprietary. [Headscale](https://github.com/juanfont/headscale) is a self-hosted open-source alternative that works with the same clients.*
 
+*Placeholders used below. Replace them with your own values:*
+- `<HOME_SUBNET>`: your home network range, e.g. `192.168.x.0/24`
+- `<PROXMOX_IP>`: the IP of your Proxmox host
+- `<CT_ID>`: the ID of your container
+
 ## Equipment List
 |Item         |Price  | Required |
 |-------------|-------|:--------:|
@@ -56,16 +61,16 @@ Running Tailscale in a lightweight LXC container on Proxmox lets it act as a *su
 |Phone or laptop to connect remotely|-|Yes
 
 ## Create the LXC Container
-1. In the Proxmox web interface, click *Create CT* and choose a Debian 12 template. Give it a hostname (e.g. `tailscale`), 2 cores, 8192MB RAM, a 4GB disk, and a static IP address (e.g. `192.168.1.50`).
+1. In the Proxmox web interface, click *Create CT* and choose a Debian 12 template. Give it a hostname (e.g. `tailscale`), 1 core, 512MB RAM, a 4GB disk, and a static IP address on your home network.
 
 2. **Do not start the container yet.**
 
 ## Enable TUN Device Access
 Tailscale needs access to the TUN device, which unprivileged LXC containers do not have by default.
 
-1. Open the Proxmox host shell and edit the container config, replacing `<ID>` with your container ID.
+1. Open the Proxmox host shell and edit the container config.
 ```bash
-nano /etc/pve/lxc/<ID>.conf
+nano /etc/pve/lxc/<CT_ID>.conf
 ```
 
 2. Add these lines to the bottom of the file and save.
@@ -88,6 +93,11 @@ apt install curl -y
 curl -fsSL https://tailscale.com/install.sh | sh
 ```
 
+3. Start Tailscale and sign in using the URL it prints. Use `--ssh` if you want [Tailscale SSH](https://tailscale.com/kb/1193/tailscale-ssh).
+```bash
+tailscale up --ssh
+```
+
 ## Configure as a Subnet Router
 1. Enable IP forwarding so the container can route traffic for other devices.
 ```bash
@@ -101,29 +111,74 @@ sysctl -p /etc/sysctl.d/99-tailscale.conf
 ip a
 ```
 
-3. Start Tailscale and advertise your subnet (replace with your own range).
+3. Advertise your subnet. Use `tailscale set` rather than `tailscale up`, because `tailscale up` refuses to change one setting unless you restate every non-default flag (such as `--ssh`).
 ```bash
-tailscale up --advertise-routes=192.168.1.0/24
+tailscale set --advertise-routes=<HOME_SUBNET>
 ```
 
-4. Open the login URL it prints in your browser and sign in.
+4. Check that it applied.
+```bash
+tailscale status
+```
 
 5. In the [admin console](https://login.tailscale.com/admin/machines), find the container under *Machines*, click the three dots and select *Edit route settings*, then tick the advertised subnet.
 
 6. Click the three dots again and select *Disable key expiry*, so the container does not drop off the network after 180 days.
 
-## Connect Your Devices
-1. Install Tailscale on your phone ([iOS](https://apps.apple.com/app/tailscale/id1470499037) / [Android](https://play.google.com/store/apps/details?id=com.tailscale.ipn)) and your PC, and sign in with the **same account**.
+*Tailscale may print a "UDP GRO forwarding is suboptimally configured" warning. It is only a performance tip for high-throughput routing and can be ignored for a home setup.*
 
-2. Toggle Tailscale on. Each device will be assigned a private `100.x.y.z` address and a MagicDNS name.
+## Test the Connection
+1. On your phone, install Tailscale ([iOS](https://apps.apple.com/app/tailscale/id1470499037) / [Android](https://play.google.com/store/apps/details?id=com.tailscale.ipn)) and sign in with the **same account**.
 
-3. To test, turn off Wi-Fi on your phone so it uses mobile data, then connect to a device on your home network using its local IP or Tailscale name.
+2. Turn off Wi-Fi so the phone uses mobile data, then toggle Tailscale on.
+
+3. Open `https://<PROXMOX_IP>:8006` in the phone browser. The Proxmox login page should load.
 
 4. In the Tailscale app, tap a device to see whether the connection is *direct* or *relayed*. Both work, but direct is faster.
 
+## Hardening
+Once Tailscale is working, your Tailscale account is effectively the key to your home network, so lock it down.
+
+### Secure the Tailscale Account
+Tailscale has no password of its own, so the identity provider you sign in with (Google, Microsoft, GitHub, Apple) is the weak point.
+
+1. Enable 2-step verification on that account. An authenticator app or passkey is better than SMS.
+
+2. In the admin console, open *Machines* and remove any device you do not recognise.
+
+3. Open *Settings -> Keys* and delete any unused auth keys.
+
+4. Confirm key expiry is disabled on the container (*Machines -> three dots -> Disable key expiry*).
+
+### Secure Proxmox
+1. Go to *Datacenter -> Permissions -> Two Factor -> Add*.
+
+2. Choose your user and **TOTP**, scan the QR code with an authenticator app, enter the code and confirm.
+
+3. **Save the recovery keys** in a password manager. Without them, losing your phone could lock you out.
+
+### Enable MagicDNS
+1. In the admin console, open the *DNS* tab and confirm **MagicDNS** is enabled.
+
+2. Devices running Tailscale can now be reached by name instead of IP.
+
+*MagicDNS only names devices running Tailscale. The Proxmox host will not get a name unless Tailscale is installed on it too.*
+
+### Snapshot the Container
+1. Select the container in Proxmox, open *Snapshots* and click *Take Snapshot*.
+
+2. Name it `tailscale-working` (no spaces) and add a description, e.g. "Subnet router approved, key expiry off".
+
+*A snapshot lives on the same storage as the container, so it protects against bad changes, not disk failure. Use *Backup -> Backup now* for a real backup.*
+
+### Restrict Access with ACLs
+By default, every device on your tailnet can reach everything, including your whole home network. To limit what a lost phone could reach, see the ACL steps in the phone setup section.
+
 ## Troubleshooting
 - **Tailscale will not start in the container:** the TUN lines are missing or incorrect. Fix the config and restart the container.
-- **Cannot reach devices on the home network:** the subnet route has not been approved in the admin console.
+- **`tailscale up` refuses to run with an error about non-default flags:** use `tailscale set` instead.
+- **Cannot reach devices on the home network:** the subnet route has not been approved in the admin console, or IP forwarding is not enabled.
+- **Container drops off the tailnet after a few months:** key expiry was not disabled.
 - **PC unreachable:** check that the PC is not asleep and that its firewall allows the remote access service you are using.
 
 ## YouTube Tutorial
