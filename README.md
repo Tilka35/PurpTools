@@ -27,7 +27,7 @@ I am making an honest commitment not to engage in vibe coding for the purpose of
 
 # Programming
 
-## Web ScPing with Python
+## Web Scraping with Python
 
 # Pentesting
 
