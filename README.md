@@ -93,9 +93,9 @@ apt install curl -y
 curl -fsSL https://tailscale.com/install.sh | sh
 ```
 
-3. Start Tailscale and sign in using the URL it prints. Use `--ssh` if you want [Tailscale SSH](https://tailscale.com/kb/1193/tailscale-ssh).
+3. Start Tailscale and sign in using the URL it prints.
 ```bash
-tailscale up --ssh
+tailscale up
 ```
 
 ## Configure as a Subnet Router
@@ -111,7 +111,7 @@ sysctl -p /etc/sysctl.d/99-tailscale.conf
 ip a
 ```
 
-3. Advertise your subnet. Use `tailscale set` rather than `tailscale up`, because `tailscale up` refuses to change one setting unless you restate every non-default flag (such as `--ssh`).
+3. Advertise your subnet. Use `tailscale set` rather than `tailscale up`, because `tailscale up` refuses to change one setting unless you restate every non-default flag.
 ```bash
 tailscale set --advertise-routes=<HOME_SUBNET>
 ```
@@ -157,6 +157,33 @@ Tailscale has no password of its own, so the identity provider you sign in with 
 
 3. **Save the recovery keys** in a password manager. Without them, losing your phone could lock you out.
 
+### Disable Unused SSH
+SSH is not needed for day-to-day administration. The Proxmox web interface has a built-in *Shell* for the host and a *Console* for every container and VM, and these work over port 8006 without SSH. Every service you leave running is one more thing to secure, so turn off what you do not use.
+
+1. **Check you have a shell without SSH first.** In the Proxmox web interface, select your node and open *Shell*.
+
+2. **Proxmox host:** run the following in that Shell. The second command only matters on newer versions where SSH is socket-activated, and an error saying the unit does not exist is harmless.
+```bash
+systemctl disable --now ssh
+systemctl disable --now ssh.socket
+```
+
+3. Confirm nothing is listening on port 22. No output means it is off.
+```bash
+ss -tlnp | grep :22
+```
+
+4. **Tailscale container:** turn off Tailscale SSH.
+```bash
+tailscale set --ssh=false
+```
+
+5. **OMV:** in the OMV web interface, go to *Services -> SSH*, untick **Enabled**, save, and apply the changes.
+
+6. From another PC on the network, `ssh root@<PROXMOX_IP>` should now be refused.
+
+*Only do this on a single-node setup. Clustered Proxmox nodes use SSH between each other. To undo it later, run `systemctl enable --now ssh`.*
+
 ### Enable MagicDNS
 1. In the admin console, open the *DNS* tab and confirm **MagicDNS** is enabled.
 
@@ -179,33 +206,20 @@ By default, every device on your tailnet can reach everything, including your wh
 - **`tailscale up` refuses to run with an error about non-default flags:** use `tailscale set` instead.
 - **Cannot reach devices on the home network:** the subnet route has not been approved in the admin console, or IP forwarding is not enabled.
 - **Container drops off the tailnet after a few months:** key expiry was not disabled.
-- **PC unreachable:** check that the PC is not asleep and that its firewall allows the remote access service you are using.
+- **Locked out of a shell after disabling SSH:** use the *Shell* button on the node, or the *Console* button on a container or VM, in the Proxmox web interface.
 
 ## YouTube Tutorial
 [![Tailscale in Proxmox](https://img.youtube.com/vi/JC63OGSzTQI/0.jpg)](https://www.youtube.com/watch?v=JC63OGSzTQI)
 
-## Tailscale on Your Phone, Hardening and ACLs
-Once the [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) is running in its Proxmox container, the next step is to connect your phone, lock down the account, and restrict what the phone can reach if it is ever lost or stolen.
+## Tailscale on Your Phone and ACLs
+Once the [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) is running in its Proxmox container, the next step is to connect your phone and restrict what it can reach if it is ever lost or stolen. Account hardening (2FA, key expiry, disabling unused SSH) is covered in the container section above.
 
 *Placeholders used below. Replace them with your own values:*
 - `<HOME_SUBNET>`: your home network range, e.g. `192.168.x.0/24`
 - `<PROXMOX_IP>`: the IP of your Proxmox host
 - `<TAILSCALE_CT_IP>`: the IP of the Tailscale container
+- `<OMV_IP>`: the IP of your OpenMediaVault VM
 - `<ROUTER_IP>`: your router's IP
-- `<PC_IP>`: the IP of your PC
-
-## Fixing the Subnet Route Command
-If the container was originally set up with `--ssh`, running `tailscale up --advertise-routes=...` fails with an error saying you must mention all non-default flags. Use `tailscale set` to change only the route setting.
-```bash
-tailscale set --advertise-routes=<HOME_SUBNET>
-```
-
-Check that it applied.
-```bash
-tailscale status
-```
-
-*The UDP GRO warning Tailscale prints is only a performance tip and can be ignored for a home setup.*
 
 ## Approve the Route
 1. Open the [admin console](https://login.tailscale.com/admin/machines) and find the container under *Machines*.
@@ -215,6 +229,8 @@ tailscale status
 3. Click the three dots again and select *Disable key expiry*.
 
 4. The container should now show a **Subnets** badge.
+
+*If the route was not advertised yet, run `tailscale set --advertise-routes=<HOME_SUBNET>` in the container. Use `tailscale set` rather than `tailscale up`, which refuses to change one setting unless you restate every non-default flag.*
 
 ## Connect Your Phone
 1. Open the Tailscale app and sign in with the **same account** used on the container.
@@ -234,18 +250,22 @@ By default, every device on a tailnet can reach every other device, and everythi
 
 1. In the admin console, open *Access controls* and **copy the existing policy into a text file as a backup**.
 
-2. Replace the policy with the following (swapping in your real addresses) and save. Add more ports as you add services.
+2. Replace the policy with the following (swapping in your real addresses) and save. The phone can reach the Proxmox web interface and OMV (web interface and SMB), and nothing else. Add more ports as you add services.
 ```json
 {
   "tagOwners": {
     "tag:phone": ["autogroup:admin"]
   },
   "acls": [
-    // Phone: only the Proxmox UI and SSH to the Tailscale container
+    // Phone: Proxmox UI and OMV (web UI + SMB)
     {
       "action": "accept",
       "src": ["tag:phone"],
-      "dst": ["<PROXMOX_IP>:8006", "<TAILSCALE_CT_IP>:22"]
+      "dst": [
+        "<PROXMOX_IP>:8006",
+        "<OMV_IP>:80",
+        "<OMV_IP>:445"
+      ]
     },
     // All other (untagged) devices: full access
     {
@@ -254,19 +274,19 @@ By default, every device on a tailnet can reach every other device, and everythi
       "dst": ["*:*"]
     }
   ],
-  "ssh": [
-    {
-      "action": "check",
-      "src": ["autogroup:member"],
-      "dst": ["autogroup:self"],
-      "users": ["autogroup:nonroot", "root"]
-    }
-  ],
   "tests": [
     {
       "src": "tag:phone",
-      "accept": ["<PROXMOX_IP>:8006", "<TAILSCALE_CT_IP>:22"],
-      "deny": ["<ROUTER_IP>:80", "<TAILSCALE_CT_IP>:8080"]
+      "accept": [
+        "<PROXMOX_IP>:8006",
+        "<OMV_IP>:80",
+        "<OMV_IP>:445"
+      ],
+      "deny": [
+        "<ROUTER_IP>:80",
+        "<TAILSCALE_CT_IP>:22",
+        "<TAILSCALE_CT_IP>:8080"
+      ]
     }
   ]
 }
@@ -274,21 +294,24 @@ By default, every device on a tailnet can reach every other device, and everythi
 
 3. Under *Machines*, click the three dots next to the phone, select *Edit ACL tags*, and add `tag:phone`.
 
+*Use plain IP addresses in the policy, without a `/24` suffix. A suffix is read as a whole network and would open up far more than one device.*
+
 ## Testing the ACLs
 1. **Built-in tests:** the `tests` block above is checked every time the policy is saved. If a test fails, the console refuses to save, so a mistake cannot take effect.
 
 2. **Preview rules:** on the *Access controls* page, use *Preview rules*, pick the phone, and check what it can reach.
 
-3. **Real-world test:** on mobile data with Tailscale on, `https://<PROXMOX_IP>:8006` should load, while something not in the rules (e.g. `http://<ROUTER_IP>`) should time out.
+3. **Real-world test:** on mobile data with Tailscale on, `https://<PROXMOX_IP>:8006` and `http://<OMV_IP>` should load, while something not in the rules (e.g. `http://<ROUTER_IP>`) should time out.
 
 4. **Safety net:** leave your PC or laptop untagged so it keeps full access. If a policy change locks the phone out, fix it from there. The console also keeps a policy history.
 
-*When adding a new service, add its IP and port to the phone's rule and a matching `accept` line to the `tests` block (e.g. `<PC_IP>:3389` for Remote Desktop, `:445` for SMB).*
+*When adding a new service, add its IP and port to the phone's rule and a matching `accept` line to the `tests` block (e.g. `:3389` for Remote Desktop).*
 
 ## Troubleshooting
 - **Page will not load from the phone:** the subnet route has not been approved, or IP forwarding is not enabled in the container.
-- **`tailscale up` refuses to run:** use `tailscale set` instead (see above).
+- **`tailscale up` refuses to run:** use `tailscale set` instead.
 - **Phone lost access after tagging:** the ACL does not include the address or port you are trying to reach. Add it to the `tag:phone` rule.
+- **OMV web interface loads but the share will not connect:** the ACL is missing port `445`, or SMB is not enabled in OMV.
 - **Locked out of the policy:** restore the backup copy of the original policy from your text file.
 
 ## YouTube Tutorial
