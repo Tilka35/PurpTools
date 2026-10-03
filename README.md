@@ -294,6 +294,130 @@ By default, every device on a tailnet can reach every other device, and everythi
 ## YouTube Tutorial
 [![Tailscale in Proxmox](https://img.youtube.com/vi/JC63OGSzTQI/0.jpg)](https://www.youtube.com/watch?v=JC63OGSzTQI)
 
+## OpenMediaVault in a Proxmox VM
+[OpenMediaVault (OMV)](https://www.openmediavault.org/) is a Debian-based NAS solution. This writeup runs it as a **virtual machine on Proxmox** instead of on a Raspberry Pi, so it can share the same host as the rest of the home lab. It is a VM rather than an LXC container because OMV is designed for a full OS with its own disks.
+
+*Placeholders used below. Replace them with your own values:*
+- `<VM_ID>`: the ID of the OMV VM (e.g. `101`)
+- `<OMV_IP>`: the IP address of the OMV VM
+- `<DISK_ID>`: the ID of a physical disk, from `/dev/disk/by-id/`
+- `<PROXMOX_IP>`: the IP of your Proxmox host
+
+## Equipment List
+|Item         |Price  | Required |
+|-------------|-------|:--------:|
+|Proxmox VE host (already installed)|-|Yes
+|[OMV ISO](https://www.openmediavault.org/download.html)|Free|Yes
+|Storage for your data (virtual disk or a spare physical drive)|-|Yes
+|Router access to set a DHCP reservation|-|Recommended
+
+## Download the ISO
+1. Download the latest stable ISO from the [OMV website](https://www.openmediavault.org/download.html).
+
+2. In Proxmox, go to *local storage -> ISO Images -> Upload* and upload the file.
+
+## Create the VM
+Click *Create VM* and use the following settings.
+
+|Tab|Setting|
+|---|-------|
+|General|ID `<VM_ID>`, name `omv`|
+|OS|Select the OMV ISO, type Linux|
+|System|Machine `q35`, tick **Qemu Agent**|
+|Disks|16GB, VirtIO SCSI single (this is the OS disk only, not for your data)|
+|CPU|2 cores, type `host`|
+|Memory|2048MB (1GB minimum)|
+|Network|Bridge `vmbr0`, model VirtIO|
+
+Finish without ticking *Start after created*.
+
+## Install OMV
+1. Start the VM, open the *Console* and follow the installer: language, hostname (`omv`), root password, and target disk.
+
+2. When it reboots, remove the ISO under *Hardware -> CD/DVD Drive* so it does not boot the installer again.
+
+3. Log in as `root` and find the IP address.
+```bash
+ip a
+```
+
+4. Set a **DHCP reservation** for the VM in your router so its address never changes.
+
+## First Login
+1. Browse to `http://<OMV_IP>`. The default username is `admin` and the default password is `openmediavault`.
+
+2. **Change the password immediately** from the user menu (*Change Password*).
+
+3. In the VM console, install the guest agent so Proxmox can see the VM's IP and shut it down cleanly.
+```bash
+apt update && apt install -y qemu-guest-agent
+systemctl enable --now qemu-guest-agent
+```
+
+## Add Storage
+Choose one of the following methods.
+
+**Option 1: Virtual disk (simplest)**
+
+1. Select the VM, go to *Hardware -> Add -> Hard Disk*.
+
+2. Choose the storage and size, then click *Add*.
+
+**Option 2: Physical disk passthrough**
+
+1. In the Proxmox host shell, list your disks by ID.
+```bash
+ls -l /dev/disk/by-id/
+```
+
+2. Pass the chosen disk through to the VM.
+```bash
+qm set <VM_ID> -scsi1 /dev/disk/by-id/<DISK_ID>
+```
+
+*Passthrough this way is easy, but SMART health data will not be visible inside OMV. For full disk access, pass through the whole disk controller instead.*
+
+## Create a File Share
+Apply the changes using the banner at the top of the OMV interface after each step.
+
+1. Go to *Storage -> Disks* and confirm the new disk appears. Wipe it if needed.
+
+2. Go to *Storage -> File Systems -> Create*, choose `ext4`, then *Mount* it.
+
+3. Go to *Users -> Users -> Create* and make a user for accessing the share.
+
+4. Go to *Storage -> Shared Folders -> Create*, select the filesystem and set permissions.
+
+5. Go to *Services -> SMB/CIFS -> Settings*, tick **Enabled** and save.
+
+6. In *Services -> SMB/CIFS -> Shares*, click *Create* and select the shared folder.
+
+7. Test from a PC on the network by entering `\\<OMV_IP>\<ShareName>` in File Explorer.
+
+## Access OMV Remotely over Tailscale
+The [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) already exposes your home network, so OMV needs no extra setup on the VM itself.
+
+1. If you restrict your phone with [ACLs](#restricting-the-phone-with-acls), add OMV to the phone's rule: `<OMV_IP>:445` for SMB and `<OMV_IP>:80` for the web interface.
+
+2. Add matching `accept` lines to the `tests` block so a bad edit cannot be saved.
+
+3. On the phone, switch to mobile data with Tailscale on, then connect to `smb://<OMV_IP>` using the Files app (iOS) or an SMB-capable file manager (Android).
+
+## Snapshot the VM
+1. Select the VM, open *Snapshots* and click *Take Snapshot*.
+
+2. Name it `omv-baseline` and add a description, e.g. "Fresh install, share working".
+
+*A snapshot protects against bad changes, not disk failure. It does not include passed-through physical disks, and it is not a backup of your data. Back up important files separately.*
+
+## Troubleshooting
+- **VM boots back into the installer:** the ISO is still attached. Remove it under *Hardware*.
+- **Cannot find the VM's IP in Proxmox:** the guest agent is not installed or *Qemu Agent* is not ticked in the VM options.
+- **OMV web interface will not load:** check the VM's IP with `ip a` in the console, as the DHCP address may have changed.
+- **Share not visible from Windows:** confirm SMB/CIFS is enabled, the share exists, and you are using the user created in OMV.
+- **Share works at home but not over Tailscale:** the ACL does not include `<OMV_IP>:445`.
+- **Changes do not take effect:** apply them with the banner at the top of the OMV interface.
+
 ## OpenMediaVault Raspberry Pi 4B Fileserver
 Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, based on Linux and running on a RasPi 4B allows us to configure a private, at-home local network storage solution.
 
