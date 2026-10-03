@@ -227,39 +227,6 @@ tailscale status
 
 5. In the Tailscale app, tap the container to see whether the connection is *direct* or *relayed*. Both work, but direct is faster.
 
-## Hardening
-### Secure the Tailscale Account
-Tailscale has no password of its own, so the identity provider you sign in with (Google, Microsoft, GitHub, Apple) is the weak point.
-
-1. Enable 2-step verification on that account. An authenticator app or passkey is better than SMS.
-
-2. In the admin console, open *Machines* and remove any device you do not recognise.
-
-3. Open *Settings -> Keys* and delete any unused auth keys.
-
-4. Confirm key expiry is disabled on the container, so it does not drop off the network after 180 days.
-
-### Secure Proxmox
-1. Go to *Datacenter -> Permissions -> Two Factor -> Add*.
-
-2. Choose your user and **TOTP**, scan the QR code with an authenticator app, enter the code and confirm.
-
-3. **Save the recovery keys** in a password manager. Without them, losing your phone could lock you out.
-
-### MagicDNS
-1. In the admin console, open the *DNS* tab and confirm **MagicDNS** is enabled.
-
-2. Devices running Tailscale can now be reached by name instead of IP.
-
-*MagicDNS only names devices running Tailscale. The Proxmox host will not get a name unless Tailscale is installed on it too.*
-
-### Snapshot the Container
-1. Select the container in Proxmox, open *Snapshots* and click *Take Snapshot*.
-
-2. Name it `tailscale-working` (no spaces) and add a description, e.g. "Subnet router approved, key expiry off".
-
-*A snapshot lives on the same storage as the container, so it protects against bad changes, not disk failure. Use *Backup -> Backup now* for a real backup.*
-
 ## Restricting the Phone with ACLs
 By default, every device on a tailnet can reach every other device, and everything behind the subnet router. A phone is the device most likely to be lost, so it is given a narrow rule that only allows what it needs.
 
