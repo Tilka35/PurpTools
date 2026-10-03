@@ -582,6 +582,188 @@ The [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) already
 - **Share works at home but not over Tailscale:** the ACL does not include `<OMV_IP>:445`.
 - **Changes do not take effect:** apply them with the banner at the top of the OMV interface.
 
+## Scheduled Weekly Reboot with Notifications
+This section reboots the Proxmox node once a week and sends a push notification to your phone when it is back up. Rebooting the node is enough: Proxmox shuts every guest down gracefully and starts them again, so the Tailscale container and OMV VM do not need their own reboot jobs.
+
+*Placeholders used below. Replace them with your own values:*
+- `<NTFY_TOPIC>`: a long, random topic name for [ntfy](https://ntfy.sh) (e.g. several random words plus digits)
+- `<HC_UUID>`: the UUID of your [healthchecks.io](https://healthchecks.io) check
+- `<REGION/CITY>`: your timezone, e.g. `Europe/Dublin`
+
+*On the public ntfy server, anyone who knows the topic name can read it and post to it, so treat it like a password. Do not reuse an example name from a guide, and do not publish your real topic name or check UUID.*
+
+All commands in this section run on the **Proxmox node** (select the node in the web interface, then *Shell*), not inside a container or VM.
+
+## Make Guests Start Automatically
+A node reboot only helps if the guests come back on their own.
+
+1. Select the Tailscale container, go to *Options -> Start at boot* and set it to **Yes**.
+
+2. Do the same for the OMV VM.
+
+3. On each guest, go to *Options -> Start/Shutdown order* and set the order so Tailscale starts first and OMV second.
+   - Tailscale container: order `1`
+   - OMV VM: order `2`, up delay `30` seconds
+
+## Check the Timezone
+Cron uses the node's local time. Check it.
+```bash
+timedatectl
+```
+
+If it is wrong, set it.
+```bash
+timedatectl set-timezone <REGION/CITY>
+```
+
+## Notify When the Node Is Back Up
+A script runs once the node has booted and sends a notification listing every container and VM, so you can see at a glance whether the Tailscale container and OMV started.
+
+1. Install the [ntfy app](https://ntfy.sh) on your phone and subscribe to `<NTFY_TOPIC>`.
+
+2. Create the script. Replace `<NTFY_TOPIC>` first, with only letters, digits, `-` and `_`. Angle brackets are not valid in a topic name and cause a 404 error.
+```bash
+cat > /usr/local/bin/boot-notify.sh << 'EOF'
+#!/bin/bash
+TOPIC="<NTFY_TOPIC>"
+sleep 30
+BODY="$(hostname) is back up ($(date '+%a %H:%M'))
+
+Containers:
+$(/usr/sbin/pct list | awk 'NR>1 {print "- " $1 " " $NF ": " $2}')
+
+VMs:
+$(/usr/sbin/qm list | awk 'NR>1 {print "- " $1 " " $2 ": " $3}')"
+curl -fsS -H "Title: Proxmox rebooted" -d "$BODY" "https://ntfy.sh/$TOPIC"
+EOF
+chmod +x /usr/local/bin/boot-notify.sh
+```
+
+3. Check that the first line is exactly `#!/bin/bash`. Pasting into an editor can add leading spaces, which makes systemd fail with `Exec format error`.
+```bash
+head -n 1 /usr/local/bin/boot-notify.sh | cat -A
+```
+The output should be `#!/bin/bash$`.
+
+4. Create a systemd unit so it runs after the network and the guests have started.
+```bash
+cat > /etc/systemd/system/boot-notify.service << 'EOF'
+[Unit]
+Description=Notify after boot
+After=network-online.target pve-guests.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/boot-notify.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+5. Enable it.
+```bash
+systemctl daemon-reload
+systemctl enable boot-notify.service
+```
+
+6. Test it through systemd (not just by running the script by hand). Wait about 30 seconds, then check the status and your phone. The status should show `status=0/SUCCESS`.
+```bash
+systemctl start boot-notify.service
+systemctl status boot-notify.service
+```
+
+The notification looks like this:
+```
+tilkam0x is back up (Sat 22:30)
+
+Containers:
+- 100 tailscale: running
+
+VMs:
+- 110 omv: running
+```
+
+## Schedule the Reboot
+Add a cron job that reboots the node every Sunday at 04:00 (`0` in the fifth field means Sunday). This appends to your existing crontab without overwriting it.
+```bash
+(crontab -l 2>/dev/null; echo '0 4 * * 0 /usr/sbin/reboot') | crontab -
+```
+
+Confirm it saved.
+```bash
+crontab -l
+```
+
+*Run the append command only once, or the line will be duplicated.*
+
+## Get Alerted if the Node Does Not Come Back
+A node that fails to boot cannot send a notification, so the failure alert has to come from something outside it. A dead-man's switch does this: the node pings an external service every few minutes, and you are alerted when the pings stop.
+
+1. Create a free check at [healthchecks.io](https://healthchecks.io) with a **5 minute** period and a **grace time of about 20 minutes**. The grace time must be longer than your reboot window, or you will get an alert every Sunday.
+
+2. In the check's *Integrations*, add email, or ntfy with a **different topic** from the boot notification.
+
+3. Add the ping to the node's crontab.
+```bash
+(crontab -l 2>/dev/null; echo '*/5 * * * * curl -fsS -m 10 --retry 3 https://hc-ping.com/<HC_UUID> > /dev/null') | crontab -
+```
+
+4. Confirm both lines are present.
+```bash
+crontab -l
+```
+
+5. After a few minutes, the check should show as **up** on the healthchecks.io dashboard.
+
+If the node stops pinging for longer than the grace time, you are alerted. This covers a failed reboot, a power cut and a crash. You can create a second check and ping it from inside the Tailscale container to also catch the case where the node is up but the container is not.
+
+## Test It
+1. Run the notification service by hand first, as shown above.
+
+2. Confirm *Start at boot* is set on both guests.
+
+3. Reboot the node manually at a time when you are happy to lose access for a few minutes.
+```bash
+reboot
+```
+
+4. After a few minutes, check that the notification arrives, `http://omv` or `http://<OMV_IP>` loads from your phone, and the Tailscale container shows as connected in the admin console.
+
+## Things to Know
+- **Remote access drops for a few minutes** around the reboot, since the Tailscale container goes down with the node.
+
+- **The failure alert can fire without a real fault.** The dead-man's switch also triggers if your home internet is down while the node is fine.
+
+- **A node that fails to boot cannot be fixed remotely**, because Tailscale is down with it. Keep backups before relying on unattended reboots.
+
+- **Weekly reboots are optional.** Proxmox shows when a kernel update is pending, so you could reboot manually after updates instead.
+
+- **Once real disks are attached to OMV,** check that OMV and its disks come back cleanly after a reboot, and avoid scheduling the reboot during large transfers.
+
+- **Proxmox's built-in notifications** (*Datacenter -> Notifications*) can send email, Gotify or webhooks for backup jobs and updates. There is no built-in "node rebooted" event, which is why the script above is needed.
+
+## Troubleshooting
+- **Service fails with `Exec format error` (status 203/EXEC):** the first line of the script is not exactly `#!/bin/bash`. Recreate the file with the command above and check it with `cat -A`.
+
+- **`curl` returns a 404 error:** the topic still contains a placeholder or an invalid character. Check it with `grep TOPIC= /usr/local/bin/boot-notify.sh`.
+
+- **Service succeeds but no alert on the phone:** open the topic in the ntfy app and check the message is listed. If it is, check notification permissions and battery optimization for the app. If it is not, check the app is subscribed to the same topic on `ntfy.sh`.
+
+- **Other errors:** check `systemctl status boot-notify.service` and `journalctl -u boot-notify.service -b`.
+
+- **Notification arrives but a guest is missing from the list:** *Start at boot* is not set on that guest.
+
+- **Guests start in the wrong order:** check the order and up delay under *Options -> Start/Shutdown order*.
+
+- **Reboot happens at the wrong time:** the node's timezone is wrong. Check it with `timedatectl`.
+
+- **Weekly alert from healthchecks.io:** the grace time is shorter than the time the node takes to reboot. Increase it.
+
+- **Cron job does not run:** check `crontab -l` and use full paths, as in the examples above.
+
+
 ## OpenMediaVault Raspberry Pi 4B Fileserver
 Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, based on Linux and running on a RasPi 4B allows us to configure a private, at-home local network storage solution.
 
@@ -639,7 +821,7 @@ sudo reboot now
 wget -O - https://raw.githubusercontent.com/OpenMediaVault-Plugin-Developers/installScript/master/install | sudo bash
 ```
 
-8. The Pi will automaticallt reboot. If not, restart the Pi.
+8. The Pi will automatically reboot. If not, restart the Pi.
 ```bash
 sudo reboot now
 ```
