@@ -41,6 +41,94 @@ I am making an honest commitment not to engage in vibe coding for the purpose of
 
 # Home Labs
 
+## Tailscale VPN in a Proxmox LXC Container
+[Tailscale](https://tailscale.com/) is a mesh VPN built on WireGuard that lets you securely reach your home lab from anywhere, **without any port forwarding**. Every device makes outbound connections only, and Tailscale handles NAT traversal to connect them directly (or through an encrypted relay as a fallback).
+
+Running Tailscale in a lightweight LXC container on Proxmox lets it act as a *subnet router*, which gives remote devices access to your whole home network rather than just machines with Tailscale installed.
+
+*Note: the Tailscale clients are open source, but the coordination server is proprietary. [Headscale](https://github.com/juanfont/headscale) is a self-hosted open-source alternative that works with the same clients.*
+
+## Equipment List
+|Item         |Price  | Required |
+|-------------|-------|:--------:|
+|Proxmox VE host (already installed)|-|Yes
+|[Tailscale account](https://login.tailscale.com/) (free Personal plan)|Free|Yes
+|Phone or laptop to connect remotely|-|Yes
+
+## Create the LXC Container
+1. In the Proxmox web interface, click *Create CT* and choose a Debian 12 template. Give it a hostname (e.g. `tailscale`), 1 core, 512MB RAM, a 4GB disk, and a static IP address (e.g. `192.168.1.50`).
+
+2. **Do not start the container yet.**
+
+## Enable TUN Device Access
+Tailscale needs access to the TUN device, which unprivileged LXC containers do not have by default.
+
+1. Open the Proxmox host shell and edit the container config, replacing `<ID>` with your container ID.
+```bash
+nano /etc/pve/lxc/<ID>.conf
+```
+
+2. Add these lines to the bottom of the file and save.
+```
+lxc.cgroup2.devices.allow: c 10:200 rwm
+lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file
+```
+
+3. Start the container and open its console.
+
+## Install Tailscale
+1. Update the container and install curl.
+```bash
+apt update && apt upgrade -y
+apt install curl -y
+```
+
+2. Run the official [install script](https://tailscale.com/install.sh).
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+```
+
+## Configure as a Subnet Router
+1. Enable IP forwarding so the container can route traffic for other devices.
+```bash
+echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.d/99-tailscale.conf
+echo 'net.ipv6.conf.all.forwarding=1' >> /etc/sysctl.d/99-tailscale.conf
+sysctl -p /etc/sysctl.d/99-tailscale.conf
+```
+
+2. Check your home network range.
+```bash
+ip a
+```
+
+3. Start Tailscale and advertise your subnet (replace with your own range).
+```bash
+tailscale up --advertise-routes=192.168.1.0/24
+```
+
+4. Open the login URL it prints in your browser and sign in.
+
+5. In the [admin console](https://login.tailscale.com/admin/machines), find the container under *Machines*, click the three dots and select *Edit route settings*, then tick the advertised subnet.
+
+6. Click the three dots again and select *Disable key expiry*, so the container does not drop off the network after 180 days.
+
+## Connect Your Devices
+1. Install Tailscale on your phone ([iOS](https://apps.apple.com/app/tailscale/id1470499037) / [Android](https://play.google.com/store/apps/details?id=com.tailscale.ipn)) and your PC, and sign in with the **same account**.
+
+2. Toggle Tailscale on. Each device will be assigned a private `100.x.y.z` address and a MagicDNS name.
+
+3. To test, turn off Wi-Fi on your phone so it uses mobile data, then connect to a device on your home network using its local IP or Tailscale name.
+
+4. In the Tailscale app, tap a device to see whether the connection is *direct* or *relayed*. Both work, but direct is faster.
+
+## Troubleshooting
+- **Tailscale will not start in the container:** the TUN lines are missing or incorrect. Fix the config and restart the container.
+- **Cannot reach devices on the home network:** the subnet route has not been approved in the admin console.
+- **PC unreachable:** check that the PC is not asleep and that its firewall allows the remote access service you are using.
+
+## YouTube Tutorial
+[![Tailscale in Proxmox](https://img.youtube.com/vi/JC63OGSzTQI/0.jpg)](https://www.youtube.com/watch?v=JC63OGSzTQI)
+
 ## OpenMediaVault Raspberry Pi 4B Fileserver
 Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, based on Linux and running on a RasPi 4B allows us to configure a private, at-home local network storage solution.
 
