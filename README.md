@@ -461,6 +461,90 @@ The built-in Files app does not support SMB. Use an SMB-capable file manager (e.
 
 3. Open a copied picture from the share to confirm the full file arrived.
 
+## Optional: Install Tailscale on OMV
+The [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) already lets a phone reach OMV at `<OMV_IP>` (phone -> Tailscale container -> OMV). Installing Tailscale on OMV itself adds a second, direct path (phone -> OMV).
+
+|                          |Subnet router only|Tailscale on OMV too|
+|--------------------------|------------------|--------------------|
+|Needs the container running|Yes              |No, OMV stays reachable on its own|
+|Address                   |`<OMV_IP>`        |`<OMV_IP>` still works, plus a `100.x` address and the name `omv`|
+|Connection path           |One extra hop     |Direct when possible, which can be faster for large transfers|
+|Maintenance               |One install       |Another install to keep updated|
+
+This is not required for basic SMB and web interface access. Skip it if you do not need the extra resilience.
+
+*Placeholder: `<OMV_TAILSCALE_IP>` is OMV's `100.x.y.z` address, shown in the Tailscale admin console or by `tailscale ip -4` on the VM.*
+
+### A Note on Names
+`omv.local` is an mDNS name. It only resolves on your home LAN and will **not** work through Tailscale. Over Tailscale, use the MagicDNS name `omv` (or `omv.<your-tailnet>.ts.net`) or the `100.x` address. MagicDNS must be enabled in the admin console under *DNS*.
+
+### Install
+No SSH is needed. Use the VM *Console* in Proxmox and log in as `root`.
+
+1. Install Tailscale and sign in with the **same account**. Do not add `--ssh` or `--advertise-routes`.
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up
+```
+
+2. Open the URL it prints and sign in.
+
+3. In the admin console, find `omv` under *Machines*, click the three dots and select *Disable key expiry*.
+
+4. Note the VM's Tailscale address.
+```bash
+tailscale ip -4
+```
+
+*A VM does not need the TUN device workaround that the LXC container did.*
+
+### Make Sure Only the Container Advertises the Subnet
+Only the Tailscale container should be the subnet router. OMV should join the tailnet as an ordinary device. Advertising the same range from two devices causes confusing routing and failover.
+
+1. On OMV, confirm it is not advertising any routes. The output should show no advertised routes.
+```bash
+tailscale debug prefs | grep -i -A2 advertise
+```
+
+2. If it is advertising something, clear it.
+```bash
+tailscale set --advertise-routes=
+```
+
+3. In the admin console, `omv` should **not** show a *Subnets* badge. Only the container should.
+
+4. Do not enable `--accept-routes` on OMV. On Linux it is off by default, and turning it on can make OMV send its own LAN traffic through Tailscale.
+
+### Update the ACLs
+Add a `hosts` alias for OMV's Tailscale address, then allow the phone to reach it. Keep the existing `<OMV_IP>` entries so both paths work.
+
+```json
+"hosts": {
+  "omv": "<OMV_TAILSCALE_IP>"
+},
+```
+
+Add these to the phone rule's `dst` list and to the `accept` list in `tests`.
+```json
+"omv:80",
+"omv:445"
+```
+
+### Test
+1. Wi-Fi off, Tailscale on.
+
+2. Open `http://omv` in the phone browser. The OMV login page should load.
+
+3. In the Files app, connect to `smb://omv` and sign in with the SMB user.
+
+4. To prove the direct path works without the container, stop the container briefly. `http://omv` should still load, while `http://<OMV_IP>` should not.
+
+### Troubleshooting
+- **`omv.local` does not resolve from the phone:** expected over Tailscale. Use `omv` or the `100.x` address.
+- **`omv` does not resolve:** MagicDNS is off, or Tailscale is not toggled on in the phone app.
+- **`omv` resolves but will not connect:** the ACL is missing the `hosts` alias or the `omv:80` / `omv:445` entries.
+- **OMV cannot reach other LAN devices after installing Tailscale:** check `--accept-routes` is off with `tailscale debug prefs | grep -i acceptroutes`.
+
 ## Access OMV Remotely over Tailscale
 The [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) already exposes your home network, so OMV needs no extra setup on the VM itself.
 
