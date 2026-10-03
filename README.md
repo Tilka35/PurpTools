@@ -394,6 +394,50 @@ Apply the changes using the banner at the top of the OMV interface after each st
 
 7. Test from a PC on the network by entering `\\<OMV_IP>\<ShareName>` in File Explorer.
 
+## Create an SMB User and Connect from a Phone
+The `admin` account is only for the OMV web interface and cannot be used to log in to SMB shares. Create a separate regular user for file access.
+
+*Extra placeholder: `<SMB_USER>` is the name of the user you create for SMB access (e.g. `phoneuser`).*
+
+### Create the User
+1. Log in to the OMV web interface at `http://<OMV_IP>` as `admin`.
+
+2. Go to *Users -> Users* and click *Create*.
+
+3. Enter a lowercase name with no spaces (e.g. `phoneuser`) and a **strong password**. This account is reachable over your VPN, so do not reuse the `admin` password. Leave the default groups.
+
+4. Click *Save*, then apply the changes using the banner at the top.
+
+### Give the User Access to the Share
+1. Go to *Storage -> Shared Folders*, select your shared folder and click *Permissions*.
+
+2. Set `<SMB_USER>` to **Read/Write**, click *Save*, and apply the changes.
+
+3. Go to *Services -> SMB/CIFS -> Shares* and confirm the share is listed with **Public** set to *no*, so it requires a login.
+
+4. Go to *Services -> SMB/CIFS -> Settings* and confirm **Enabled** is ticked.
+
+### Connect from an iPhone
+1. Turn off Wi-Fi so the phone uses mobile data, and make sure Tailscale is on.
+
+2. Open the *Files* app, tap the three dots, then *Connect to Server*.
+
+3. Enter `smb://<OMV_IP>` and tap *Next*.
+
+4. Choose **Registered User**, enter `<SMB_USER>` and its password, and tap *Next*. No domain or workgroup is needed.
+
+5. Open the share. To upload, open *Photos*, select a picture, tap *Share -> Save to Files*, and choose the share. To download, open the file in the share and tap *Share -> Save Image*.
+
+### Connect from an Android Phone
+The built-in Files app does not support SMB. Use an SMB-capable file manager (e.g. Solid Explorer or CX File Explorer), add a new SMB connection to `<OMV_IP>` with `<SMB_USER>`, then copy files to and from the share.
+
+### Check It Went Over Tailscale
+1. Wi-Fi must stay off during the test.
+
+2. In the Tailscale app, tap the container to confirm a connection is active (direct or relayed both work).
+
+3. Open a copied picture from the share to confirm the full file arrived.
+
 ## Access OMV Remotely over Tailscale
 The [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) already exposes your home network, so OMV needs no extra setup on the VM itself.
 
