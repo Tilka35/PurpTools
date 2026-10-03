@@ -56,7 +56,7 @@ Running Tailscale in a lightweight LXC container on Proxmox lets it act as a *su
 |Phone or laptop to connect remotely|-|Yes
 
 ## Create the LXC Container
-1. In the Proxmox web interface, click *Create CT* and choose a Debian 12 template. Give it a hostname (e.g. `tailscale`), 1 core, 512MB RAM, a 4GB disk, and a static IP address (e.g. `192.168.1.50`).
+1. In the Proxmox web interface, click *Create CT* and choose a Debian 12 template. Give it a hostname (e.g. `tailscale`), 2 cores, 8192MB RAM, a 4GB disk, and a static IP address (e.g. `192.168.1.50`).
 
 2. **Do not start the container yet.**
 
