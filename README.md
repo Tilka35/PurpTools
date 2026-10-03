@@ -129,6 +129,149 @@ tailscale up --advertise-routes=192.168.1.0/24
 ## YouTube Tutorial
 [![Tailscale in Proxmox](https://img.youtube.com/vi/JC63OGSzTQI/0.jpg)](https://www.youtube.com/watch?v=JC63OGSzTQI)
 
+## Tailscale on Your Phone, Hardening and ACLs
+Once the [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) is running in its Proxmox container, the next step is to connect your phone, lock down the account, and restrict what the phone can reach if it is ever lost or stolen.
+
+*Placeholders used below. Replace them with your own values:*
+- `<HOME_SUBNET>`: your home network range, e.g. `192.168.x.0/24`
+- `<PROXMOX_IP>`: the IP of your Proxmox host
+- `<TAILSCALE_CT_IP>`: the IP of the Tailscale container
+- `<ROUTER_IP>`: your router's IP
+- `<PC_IP>`: the IP of your PC
+
+## Fixing the Subnet Route Command
+If the container was originally set up with `--ssh`, running `tailscale up --advertise-routes=...` fails with an error saying you must mention all non-default flags. Use `tailscale set` to change only the route setting.
+```bash
+tailscale set --advertise-routes=<HOME_SUBNET>
+```
+
+Check that it applied.
+```bash
+tailscale status
+```
+
+*The UDP GRO warning Tailscale prints is only a performance tip and can be ignored for a home setup.*
+
+## Approve the Route
+1. Open the [admin console](https://login.tailscale.com/admin/machines) and find the container under *Machines*.
+
+2. Click the three dots, select *Edit route settings*, and tick your advertised subnet.
+
+3. Click the three dots again and select *Disable key expiry*.
+
+4. The container should now show a **Subnets** badge.
+
+## Connect Your Phone
+1. Open the Tailscale app and sign in with the **same account** used on the container.
+
+2. Toggle Tailscale on and accept the VPN permission prompt. The container should appear in the device list.
+
+3. **Test on mobile data.** Turn off Wi-Fi first, since testing on home Wi-Fi proves nothing.
+
+4. With Tailscale on, open `https://<PROXMOX_IP>:8006` in the phone browser. The Proxmox login page should load (accept the certificate warning).
+
+5. In the Tailscale app, tap the container to see whether the connection is *direct* or *relayed*. Both work, but direct is faster.
+
+## Hardening
+### Secure the Tailscale Account
+Tailscale has no password of its own, so the identity provider you sign in with (Google, Microsoft, GitHub, Apple) is the weak point.
+
+1. Enable 2-step verification on that account. An authenticator app or passkey is better than SMS.
+
+2. In the admin console, open *Machines* and remove any device you do not recognise.
+
+3. Open *Settings -> Keys* and delete any unused auth keys.
+
+4. Confirm key expiry is disabled on the container, so it does not drop off the network after 180 days.
+
+### Secure Proxmox
+1. Go to *Datacenter -> Permissions -> Two Factor -> Add*.
+
+2. Choose your user and **TOTP**, scan the QR code with an authenticator app, enter the code and confirm.
+
+3. **Save the recovery keys** in a password manager. Without them, losing your phone could lock you out.
+
+### MagicDNS
+1. In the admin console, open the *DNS* tab and confirm **MagicDNS** is enabled.
+
+2. Devices running Tailscale can now be reached by name instead of IP.
+
+*MagicDNS only names devices running Tailscale. The Proxmox host will not get a name unless Tailscale is installed on it too.*
+
+### Snapshot the Container
+1. Select the container in Proxmox, open *Snapshots* and click *Take Snapshot*.
+
+2. Name it `tailscale-working` (no spaces) and add a description, e.g. "Subnet router approved, key expiry off".
+
+*A snapshot lives on the same storage as the container, so it protects against bad changes, not disk failure. Use *Backup -> Backup now* for a real backup.*
+
+## Restricting the Phone with ACLs
+By default, every device on a tailnet can reach every other device, and everything behind the subnet router. A phone is the device most likely to be lost, so it is given a narrow rule that only allows what it needs.
+
+**What tagging does:** a tagged device belongs to the tag (e.g. `tag:phone`) instead of to your user. Only rules naming that tag apply to it, and its key does not expire. If a tagged phone is lost, delete it from the admin console. Never tag your main admin device.
+
+1. In the admin console, open *Access controls* and **copy the existing policy into a text file as a backup**.
+
+2. Replace the policy with the following (swapping in your real addresses) and save. Add more ports as you add services.
+```json
+{
+  "tagOwners": {
+    "tag:phone": ["autogroup:admin"]
+  },
+  "acls": [
+    // Phone: only the Proxmox UI and SSH to the Tailscale container
+    {
+      "action": "accept",
+      "src": ["tag:phone"],
+      "dst": ["<PROXMOX_IP>:8006", "<TAILSCALE_CT_IP>:22"]
+    },
+    // All other (untagged) devices: full access
+    {
+      "action": "accept",
+      "src": ["autogroup:member"],
+      "dst": ["*:*"]
+    }
+  ],
+  "ssh": [
+    {
+      "action": "check",
+      "src": ["autogroup:member"],
+      "dst": ["autogroup:self"],
+      "users": ["autogroup:nonroot", "root"]
+    }
+  ],
+  "tests": [
+    {
+      "src": "tag:phone",
+      "accept": ["<PROXMOX_IP>:8006", "<TAILSCALE_CT_IP>:22"],
+      "deny": ["<ROUTER_IP>:80", "<TAILSCALE_CT_IP>:8080"]
+    }
+  ]
+}
+```
+
+3. Under *Machines*, click the three dots next to the phone, select *Edit ACL tags*, and add `tag:phone`.
+
+## Testing the ACLs
+1. **Built-in tests:** the `tests` block above is checked every time the policy is saved. If a test fails, the console refuses to save, so a mistake cannot take effect.
+
+2. **Preview rules:** on the *Access controls* page, use *Preview rules*, pick the phone, and check what it can reach.
+
+3. **Real-world test:** on mobile data with Tailscale on, `https://<PROXMOX_IP>:8006` should load, while something not in the rules (e.g. `http://<ROUTER_IP>`) should time out.
+
+4. **Safety net:** leave your PC or laptop untagged so it keeps full access. If a policy change locks the phone out, fix it from there. The console also keeps a policy history.
+
+*When adding a new service, add its IP and port to the phone's rule and a matching `accept` line to the `tests` block (e.g. `<PC_IP>:3389` for Remote Desktop, `:445` for SMB).*
+
+## Troubleshooting
+- **Page will not load from the phone:** the subnet route has not been approved, or IP forwarding is not enabled in the container.
+- **`tailscale up` refuses to run:** use `tailscale set` instead (see above).
+- **Phone lost access after tagging:** the ACL does not include the address or port you are trying to reach. Add it to the `tag:phone` rule.
+- **Locked out of the policy:** restore the backup copy of the original policy from your text file.
+
+## YouTube Tutorial
+[![Tailscale in Proxmox](https://img.youtube.com/vi/JC63OGSzTQI/0.jpg)](https://www.youtube.com/watch?v=JC63OGSzTQI)
+
 ## OpenMediaVault Raspberry Pi 4B Fileserver
 Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, based on Linux and running on a RasPi 4B allows us to configure a private, at-home local network storage solution.
 
