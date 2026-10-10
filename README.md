@@ -763,6 +763,100 @@ reboot
 
 - **Cron job does not run:** check `crontab -l` and use full paths, as in the examples above.
 
+## Notify When the Node Shuts Down
+This sends a push notification when the Proxmox node shuts down or reboots. It complements the [boot notification](#notify-when-the-node-is-back-up), so with a weekly reboot you get "rebooting" followed by "back up". All commands run on the **Proxmox node** (*node -> Shell*), not inside a container or VM.
+
+*Placeholder: `<NTFY_TOPIC>` is your private [ntfy](https://ntfy.sh) topic. It can only contain letters, digits, `-` and `_`. Angle brackets cause a 404 error. Do not publish your real topic.*
+
+*Nothing can notify you about a power cut, crash or hard reset, because nothing runs when the machine dies instantly. Use a dead-man's switch such as [healthchecks.io](https://healthchecks.io) for those.*
+
+## How It Works
+- A systemd service "starts" instantly and stays active, and does nothing while the node is running.
+- At shutdown, systemd stops the service, which runs the notification script.
+- The service is ordered after the network and the guests, so it is stopped *before* them and the network is still up when it sends.
+- The script checks whether a reboot is queued, so the message says "rebooting" or "shutting down".
+
+## Create the Script
+1. Create the script. Replace `<NTFY_TOPIC>` first.
+```bash
+cat > /usr/local/bin/shutdown-notify.sh << 'EOF'
+#!/bin/bash
+TOPIC="<NTFY_TOPIC>"
+if systemctl list-jobs | grep -q 'reboot.target'; then ACTION="rebooting"; else ACTION="shutting down"; fi
+curl -fsS -m 10 -H "Title: Proxmox $ACTION" -d "$(hostname) is $ACTION ($(date '+%a %H:%M'))" "https://ntfy.sh/$TOPIC"
+exit 0
+EOF
+chmod +x /usr/local/bin/shutdown-notify.sh
+```
+
+2. Check that the first line is exactly `#!/bin/bash` and the topic has no angle brackets. Pasting into an editor can add leading spaces, which makes systemd fail with `Exec format error`.
+```bash
+head -n 2 /usr/local/bin/shutdown-notify.sh | cat -A
+```
+
+3. Test the script by hand. Your phone should receive "is shutting down". It says that because no reboot is in progress, and the node does not actually shut down.
+```bash
+/usr/local/bin/shutdown-notify.sh
+```
+
+## Create the Service
+1. Create the unit.
+```bash
+cat > /etc/systemd/system/shutdown-notify.service << 'EOF'
+[Unit]
+Description=Notify on shutdown
+After=network-online.target pve-guests.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/usr/local/bin/shutdown-notify.sh
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+2. Enable and start it.
+```bash
+systemctl daemon-reload
+systemctl enable --now shutdown-notify.service
+systemctl status shutdown-notify.service
+```
+The status should read `active (exited)`.
+
+## Test It
+1. Stopping the service runs the script, just as shutdown does. Then re-arm it.
+```bash
+systemctl stop shutdown-notify.service
+systemctl start shutdown-notify.service
+```
+
+2. Reboot the node at a time when you are happy to lose access for a few minutes.
+```bash
+reboot
+```
+
+3. You should receive two notifications in order: "rebooting", then the boot notification once the node is back up.
+
+## Things to Know
+- **Shutdown cannot be held up.** The `-m 10` limit on `curl`, `exit 0` and `TimeoutStopSec=20` mean a failed send adds a few seconds at most.
+- **This only reports the node.** To be told when an individual container or VM stops, use a Proxmox hookscript.
+- **Remote access drops for a few minutes** around a reboot if the Tailscale container runs on this node.
+
+## Troubleshooting
+- **No notification on shutdown:** run `systemctl status shutdown-notify.service` and `journalctl -u shutdown-notify.service -n 20 --no-pager`.
+
+- **`Exec format error` (status 203/EXEC):** the first line of the script is not exactly `#!/bin/bash`. Recreate the file with the command above.
+
+- **`curl` returns a 404 error:** the topic still contains a placeholder or an invalid character. Check it with `grep TOPIC= /usr/local/bin/shutdown-notify.sh`.
+
+- **Service shows `inactive` after a test:** run `systemctl start shutdown-notify.service` to re-arm it.
+
+- **Message always says "shutting down" during a reboot:** the reboot job was not visible when the script ran. The notification still arrives, so this is cosmetic.
 
 ## OpenMediaVault Raspberry Pi 4B Fileserver
 Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, based on Linux and running on a RasPi 4B allows us to configure a private, at-home local network storage solution.
