@@ -1092,6 +1092,45 @@ apt update && apt upgrade -y
 
 - **Container will not start after a reboot:** check *Start at boot* is set and the static IP is not used by another device.
 
+## NOTIFICATIONS AND MONITORING
+
+- Boot notification (ntfy): /usr/local/bin/boot-notify.sh + boot-notify.service
+  - Runs after the network and pve-guests.service, waits 30s
+  - Sends ONE message listing every container and VM with its status
+  - Example: "pve is back up" with "- 100 tailscale: running", "- 110 omv: running"
+  - Does NOT send a separate alert for a failed guest. A guest that didn't start shows as "stopped" in the list, so read the list.
+  - "running" only means the guest process is up, not that its services are healthy. Check http://omv and Pi-hole after a reboot.
+- Shutdown notification (ntfy): /usr/local/bin/shutdown-notify.sh + shutdown-notify.service
+  - Sends "rebooting" or "shutting down" when the node goes down
+  - Service must stay armed: systemctl is-active shutdown-notify.service = active
+  - After a manual stop/start test, always start it again
+- Guest hookscript (optional): /var/lib/vz/snippets/guest-notify.sh
+  - Alerts when a single guest stops, stays quiet during a whole-node reboot
+  - Only reports stops, not starts [TODO: confirm attached, or skip]
+- Dead-man's switch: healthchecks.io
+  - Check: period 5 min, grace 20 min (alerts after 25 min of silence)
+  - Ping: cron on the node every 5 minutes (confirmed working)
+  - Alert: its own ntfy integration, separate topic from the boot/shutdown one, plus email
+  - Normal reboot inside the window sends NO alert (it never goes "down")
+  - Covers power cuts, crashes, hard resets and a node that won't boot
+  - Can false-alarm if home internet is down while the node is fine
+- Weekly reboot: 0 4 * * 0 /usr/sbin/reboot [TODO: add after the reboot test passes]
+- Two ntfy topics are in use: one for node boot/shutdown, one for healthchecks.io. Keep both private.
+  - [TODO: confirm the node scripts no longer use the old topic ending in x7k2q9m4]
+    check with: grep TOPIC= /usr/local/bin/boot-notify.sh /usr/local/bin/shutdown-notify.sh
+
+### After every reboot, check
+- Boot notification arrived and lists tailscale, pihole and omv as running
+- http://omv loads from the phone (mobile data, Tailscale on)
+- Pi-hole answers: nslookup google.com 192.168.0.120
+- crontab -l shows the ping (and the reboot line once added)
+- systemctl is-active cron shutdown-notify.service = active
+- healthchecks.io check is green, with no alert
+
+### Not covered
+- Power cuts, crashes and hard resets send nothing from the node (healthchecks.io is the alert)
+- A node that fails to boot can't be fixed remotely, because Tailscale goes down with it
+
 ## OpenMediaVault Raspberry Pi 4B Fileserver
 Installing a lightweight and feature-rich home NAS solution, OpenMediaVault, based on Linux and running on a RasPi 4B allows us to configure a private, at-home local network storage solution.
 
