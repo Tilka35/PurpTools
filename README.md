@@ -582,6 +582,277 @@ The [Tailscale subnet router](#tailscale-vpn-in-a-proxmox-lxc-container) already
 - **Share works at home but not over Tailscale:** the ACL does not include `<OMV_IP>:445`.
 - **Changes do not take effect:** apply them with the banner at the top of the OMV interface.
 
+## Pi-hole in a Proxmox LXC Container
+[Pi-hole](https://pi-hole.net/) is a network-wide ad and tracker blocker that works as a DNS server for your home network. Devices ask it for the address of a domain, and Pi-hole answers with a dead address (`0.0.0.0`) if the domain is on a blocklist. Otherwise it forwards the question to a real upstream DNS server and caches the answer. Your actual web traffic never passes through Pi-hole, so it needs very few resources.
+
+*Placeholders used below. Replace them with your own values:*
+- `<PIHOLE_ID>`: the ID of the Pi-hole container (e.g. `120`)
+- `<PIHOLE_IP>`: a free, static IP outside your router's DHCP pool
+- `<ROUTER_IP>`: your router's IP
+- `<NTFY_TOPIC>`: your private ntfy topic
+
+## How It Works
+```
+Device                 Pi-hole                      Upstream DNS
+  |  "IP for example.com?"  |                              |
+  |------------------------>|  not blocked, not cached     |
+  |                         |----------------------------->|
+  |<------------------------|<-----------------------------|
+  |  real answer (cached)                                  |
+  |===== website traffic goes straight to the site =======>|
+
+  |  "IP for ads.tracker.com?" |
+  |--------------------------->|  on a blocklist
+  |<---------------------------|  0.0.0.0, the connection fails instantly
+```
+- Pi-hole sees the domain names each device looks up, never the page contents.
+- It blocks whole domains, so ads served from the same domain as the content (e.g. YouTube) cannot be blocked this way.
+- Devices set to their own DNS server, or using built-in encrypted DNS, bypass it.
+- **If Pi-hole is down, every device that uses it loses DNS.** The steps below keep your infrastructure off Pi-hole so remote access survives an outage.
+
+## Create the LXC Container
+1. Ping `<PIHOLE_IP>` from a PC. It should time out, which confirms the address is free. Also make sure it is outside your router's DHCP pool, or reserve it there.
+
+2. In Proxmox, go to *local -> CT Templates -> Templates* and download `debian-12-standard` if you do not have it.
+
+3. Click *Create CT* and use the following settings.
+
+|Tab|Setting|
+|---|-------|
+|General|ID `<PIHOLE_ID>`, hostname `pihole`, set a root password, leave *Unprivileged* ticked|
+|Template|`debian-12-standard`|
+|Disks|4GB|
+|CPU|1 core|
+|Memory|512MB, swap 512MB|
+|Network|Bridge `vmbr0`, IPv4 *Static* `<PIHOLE_IP>/24`, gateway `<ROUTER_IP>`|
+|DNS|DNS server `1.1.1.1` (or your router), domain blank|
+
+4. Untick *Start after created* and finish.
+
+5. Select the container, go to *Options -> Start at boot* and set it to **Yes**.
+
+6. Go to *Options -> Start/Shutdown order* and set the order to `1`, so DNS is among the first things up after a node reboot.
+
+7. Start the container and open its *Console*.
+
+## Install Pi-hole
+1. Update the container and install curl.
+```bash
+apt update && apt upgrade -y
+apt install -y curl
+```
+
+2. Run the official installer.
+```bash
+curl -sSL https://install.pi-hole.net | bash
+```
+
+3. In the installer, keep the static IP prompt (the container is already static), choose an upstream DNS provider (e.g. Cloudflare or Quad9), and keep the default blocklist and query logging.
+
+4. Set the admin password.
+```bash
+pihole setpassword
+```
+
+## Privacy Settings
+- **Privacy mode:** start with *Show everything*, since the query log is how you find out why a site is broken. Raise it later (hide domains, or domains and clients) if other people use the network.
+- **Query logging:** keep it on. Shorten the retention period instead of turning it off.
+- **Upstream provider:** whichever one you pick sees every domain you look up, even if Pi-hole hides it in its own log.
+- **DNSSEC:** safe to enable. It checks that answers have not been tampered with.
+- **Listening:** only answer local requests. **Never expose port 53 to the internet.**
+
+## Blocklists
+The installer enables one list by default (StevenBlack's Unified Hosts). To check or add lists:
+
+1. Open `http://<PIHOLE_IP>/admin` and go to *Lists*.
+
+2. To add one, paste its URL, add a comment and click *Add*. Curated lists are on [firebog.net](https://firebog.net). Start with the ones marked as safe, and avoid adding many, since aggressive lists break more sites.
+
+3. Reload the lists in the container console after any change.
+```bash
+pihole -g
+```
+
+## Test It
+1. Open `http://<PIHOLE_IP>/admin` and log in.
+
+2. From a PC, check that an ad domain is blocked. A result of `0.0.0.0` means it works.
+```
+nslookup doubleclick.net <PIHOLE_IP>
+```
+
+3. Check that a normal site still resolves to a real address.
+```
+nslookup google.com <PIHOLE_IP>
+```
+
+4. Both lookups should appear in the *Query Log*, one blocked and one allowed.
+
+5. Take a snapshot of the container named `pihole-working` before changing anything else on the network.
+
+## Try It on One Device First
+Do not change the router yet.
+
+1. On a PC, set the DNS server manually to `<PIHOLE_IP>` (*Settings -> Network -> your adapter -> DNS*).
+
+2. Browse normally for a few minutes, including some ad-heavy sites.
+
+3. If a site breaks, find the blocked domain in the *Query Log* and click *Allow*. The change applies immediately.
+
+## Roll It Out to the Whole Network
+1. Set the router's DHCP DNS server to `<PIHOLE_IP>`. Devices pick it up when they renew their lease or reconnect.
+
+2. If you can enter a second DNS server on the router, you can add `1.1.1.1` as a fallback. Many devices do not strictly prefer the first server, so some will skip ad blocking even when Pi-hole is up. Leave it out if you want strict blocking.
+
+3. **Rollback:** if devices lose internet after the change, put the router's DNS back to its previous setting. Write this step down somewhere you can read without internet.
+
+## Keep Infrastructure Off Pi-hole
+Pi-hole runs on the same node as everything else, so the services that provide your remote access and monitoring must not depend on it.
+
+|Service|Use Pi-hole?|Why|
+|-------|:----------:|---|
+|Proxmox node|No|It needs DNS before Pi-hole has started (the boot notification sends to `ntfy.sh`, and updates need it too), and it hosts Pi-hole|
+|Tailscale container|No|It is the way back in, and must find Tailscale's servers at boot without another guest being up|
+|OMV VM|No|It gains almost nothing from ad blocking, and needs reliable DNS for updates and Tailscale|
+|Phones, PCs, TVs, other household devices|Yes|This is what Pi-hole is for|
+
+Set a non-Pi-hole DNS server (your router, or `1.1.1.1`) on each:
+
+1. **Proxmox node:** *node -> System -> DNS*. Verify with `cat /etc/resolv.conf` in the node *Shell*.
+
+2. **Tailscale container:** *container -> DNS* tab. Verify with `cat /etc/resolv.conf` in its console.
+
+3. **OMV:** *Network -> Interfaces*, edit the interface and enter a DNS server. OMV may have taken its address by DHCP, so it would otherwise inherit Pi-hole from the router.
+
+4. **Static settings are not changed by the router.** The node and the Tailscale container have their own DNS settings and keep them. OMV is the one at risk, so check it first.
+
+5. **Do not set Pi-hole as a global nameserver in the Tailscale admin console.** It would apply to every device on the tailnet, including the ones above.
+
+## Notifications
+**Boot notification:** no script is needed inside the Pi-hole container. The [boot notification](#notify-when-the-node-is-back-up) runs on the node and lists every container and VM, so Pi-hole appears in the message automatically once *Start at boot* is set.
+
+**Shutdown notification:** see the next section, which covers the node and every guest. To also get an alert when only Pi-hole stops, attach the guest hookscript to it.
+```bash
+pct set <PIHOLE_ID> --hookscript local:snippets/guest-notify.sh
+```
+
+## Weekly Reboot and DNS
+The weekly node reboot takes Pi-hole down with it, so DNS filtering is unavailable for a few minutes around 04:00. Pi-hole starts first (order `1`), so the gap should be short. Devices that are awake at that hour may see failed lookups until it returns.
+
+## Maintenance
+- **Update Pi-hole** from the container console, at a time when a short DNS restart does not matter.
+```bash
+pihole -up
+apt update && apt upgrade -y
+```
+
+- **Reload blocklists:** `pihole -g`.
+
+## Troubleshooting
+- **Sites will not load on a device:** check its DNS setting, and try the rollback above. Test with `nslookup google.com <PIHOLE_IP>`.
+
+- **A site or app is broken:** open the *Query Log*, find the blocked domain from that time, and click *Allow*.
+
+- **Ads still appear:** the device may use its own DNS or built-in encrypted DNS, or the ad is served from the same domain as the content.
+
+- **Whole network loses DNS:** the container is down. Start it from the Proxmox web interface, or use the router rollback.
+
+- **Dashboard shows 0 domains on blocklists:** the lists have not loaded. Run `pihole -g`.
+
+- **Container will not start after a reboot:** check *Start at boot* is set and the static IP is not used by another device.
+
+## Notify on Shutdown
+This section sends a notification when the node shuts down or reboots, and when an individual guest (Pi-hole, OMV or the Tailscale container) stops. It complements the [boot notification](#notify-when-the-node-is-back-up), so with the weekly reboot you get "rebooting" followed by "back up". Run everything on the **Proxmox node** (*node -> Shell*).
+
+*Nothing can notify you about a power cut, crash or hard reset, because nothing runs when the machine dies instantly. The dead-man's switch covers those.*
+
+### Node Shutdown
+1. Create the script. Replace `<NTFY_TOPIC>` first.
+```bash
+cat > /usr/local/bin/shutdown-notify.sh << 'EOF'
+#!/bin/bash
+TOPIC="<NTFY_TOPIC>"
+if systemctl list-jobs | grep -q 'reboot.target'; then ACTION="rebooting"; else ACTION="shutting down"; fi
+curl -fsS -m 10 -H "Title: Proxmox $ACTION" -d "$(hostname) is $ACTION ($(date '+%a %H:%M'))" "https://ntfy.sh/$TOPIC"
+exit 0
+EOF
+chmod +x /usr/local/bin/shutdown-notify.sh
+```
+
+2. Check that the first line is exactly `#!/bin/bash`.
+```bash
+head -n 1 /usr/local/bin/shutdown-notify.sh | cat -A
+```
+
+3. Create the service. It starts instantly and stays active, and the script runs when systemd *stops* it at shutdown. Because it is ordered after the network and the guests, it stops before them, so the network is still available when it sends.
+```bash
+cat > /etc/systemd/system/shutdown-notify.service << 'EOF'
+[Unit]
+Description=Notify on shutdown
+After=network-online.target pve-guests.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/usr/local/bin/shutdown-notify.sh
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now shutdown-notify.service
+```
+
+4. Test it. Stopping the service sends a message straight away, then re-arm it.
+```bash
+systemctl stop shutdown-notify.service
+systemctl start shutdown-notify.service
+```
+
+*The `-m 10` limit and `exit 0` stop a failed send from delaying shutdown.*
+
+### Guest Shutdown (Pi-hole, OMV, Tailscale)
+A Proxmox hookscript runs on the node whenever a guest changes state, so nothing needs installing inside the guests.
+
+1. Go to *Datacenter -> Storage -> local -> Edit -> Content* and tick **Snippets**.
+
+2. Create the hookscript. It stays quiet when the whole node is shutting down, so you do not get several alerts at once.
+```bash
+cat > /var/lib/vz/snippets/guest-notify.sh << 'EOF'
+#!/bin/bash
+VMID="$1"
+PHASE="$2"
+TOPIC="<NTFY_TOPIC>"
+[ "$PHASE" = "post-stop" ] || exit 0
+systemctl list-jobs 2>/dev/null | grep -qE 'reboot.target|poweroff.target|halt.target' && exit 0
+NAME=$(/usr/sbin/pct config "$VMID" 2>/dev/null | awk '/^hostname:/{print $2}')
+[ -z "$NAME" ] && NAME=$(/usr/sbin/qm config "$VMID" 2>/dev/null | awk '/^name:/{print $2}')
+curl -fsS -m 10 -H "Title: Guest stopped" -d "$VMID ${NAME:-unknown} stopped ($(date '+%a %H:%M'))" "https://ntfy.sh/$TOPIC" > /dev/null
+exit 0
+EOF
+chmod +x /var/lib/vz/snippets/guest-notify.sh
+```
+
+3. Attach it to each guest.
+```bash
+pct set <PIHOLE_ID> --hookscript local:snippets/guest-notify.sh
+pct set <CT_ID> --hookscript local:snippets/guest-notify.sh
+qm set <VM_ID> --hookscript local:snippets/guest-notify.sh
+```
+
+4. Test with a guest you do not rely on remotely, such as OMV or Pi-hole. Shut it down from the web interface, then start it again. If the first stop does not notify, start the guest and stop it again, since the hook may only apply from the next start.
+
+*Do not test on the Tailscale container while you are away from home, since stopping it cuts your remote access.*
+
+### Troubleshooting
+- **No message on shutdown:** check `systemctl status shutdown-notify.service` and that the topic has no angle brackets or invalid characters.
+- **No guest message:** check *Snippets* is enabled on the `local` storage and the hookscript is attached (`pct config <ID>`).
+- **Weekly reboot sends only "rebooting":** expected. The "back up" message follows from the boot notification.
+- **Shutdown seems slower:** the `-m 10` limit means the send adds at most 10 seconds.
+
 ## Scheduled Weekly Reboot with Notifications
 This section reboots the Proxmox node once a week and sends a push notification to your phone when it is back up. Rebooting the node is enough: Proxmox shuts every guest down gracefully and starts them again, so the Tailscale container and OMV VM do not need their own reboot jobs.
 
