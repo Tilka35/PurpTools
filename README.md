@@ -1,44 +1,5 @@
 <img width="600" height="200" alt="github-header" src="https://github.com/user-attachments/assets/475c67df-cff3-4771-b01d-bc7c1f9c806b" />
 
-# ⚠️ Ethical Usage Disclaimer ⚠️
-
-This repository is intended **solely for ethical cybersecurity research, educational purposes, and authorized penetration testing**. The tools and scripts provided herein **must never be used for unauthorized access, exploitation, or any form of illegal activity**. 
-
-By utilizing this repository, you **agree** to the following legally binding terms:
-- You **must** obtain explicit permission from system owners before conducting security testing.
-- You **must** comply with all applicable laws, regulations, and ethical hacking guidelines in your given location.
-- The author of this repository **is not responsible** for any misuse, unlawful activity, or damages caused by the use of this code.
-
-**Misuse of this code may result in severe legal consequences.** Proceed responsibly and ethically. Have fun.
-
-# Overview
-This is a collection of tools and a sort of roadmap of my coding practice and challenging myself to develop tools that can benefit the open-source community.
-Find a variation of Blue and Red Team based tools and interesting scripts in this repository.
-
-My intent is to provide education and for this collection to pose as a showcase of my coding ability.
-
-Use these tools at your own discretion and ensure you are always following strict security practices and have written permission before using these tools on networks or devices THAT ARE NOT YOUR OWN!
-
-Most tools are a work-in-progress, and I am to improve on them as I continue to develop my skills and their functionality.
-
-I am making an honest commitment not to engage in vibe coding for the purpose of my learning, rather using LLMs and AI for learning about best practices, understanding how code works and developing new methodologies of using tools and inspiration for ideas. I appreciate constructive criticism and feedback :)
-
-# Coming Soon...
-
-# Programming
-
-## Web Scraping with Python
-
-# Pentesting
-
-# TryHackMe Writeups
-
-# Meshtastic
-
-# Flipper Zero
-
-# Nethunter
-
 # Home Labs
 
 ## Tailscale VPN in a Proxmox LXC Container
@@ -1091,6 +1052,270 @@ apt update && apt upgrade -y
 - **Dashboard shows 0 domains on blocklists:** the lists have not loaded. Run `pihole -g`.
 
 - **Container will not start after a reboot:** check *Start at boot* is set and the static IP is not used by another device.
+
+## Wazuh SIEM in a Proxmox VM
+[Wazuh](https://wazuh.com/) is an open-source security monitoring platform (SIEM and XDR). A small program called an **agent** runs on each monitored machine and sends logs, file changes and configuration checks to the Wazuh **server**. The server analyses them against a ruleset and shows alerts in a web dashboard. This writeup runs the server as a single all-in-one VM (manager, indexer and dashboard together) on Proxmox, then enrols the Proxmox node and a Windows 10 PC as agents.
+
+*Placeholders used below. Replace them with your own values:*
+- `<WAZUH_ID>`: the ID of the Wazuh VM (e.g. `140`)
+- `<WAZUH_IP>`: a free, static IP on your home network
+- `<ROUTER_IP>`: your router's IP
+- `<NODE_IP>`: the IP of your Proxmox node
+- `<AGENT_VERSION>`: the agent version the dashboard shows (it must match your server version)
+
+### Requirements
+Wazuh's quickstart sizing for a small deployment (1 to 25 agents) is **4 vCPU, 8 GiB RAM and 50 GB of storage** for about 90 days of alerts. Check what your node has to spare before creating the VM.
+```bash
+free -h
+pvesm status
+nproc
+```
+Leave at least 1 to 2 GB of RAM for the node itself. Keep the dashboard LAN-only, and never forward its ports on your router.
+
+### Choose an Operating System
+The Wazuh 4.14 installer recommends Ubuntu up to 24.04, so **Ubuntu Server 24.04 LTS** is the fully supported choice. Debian is not on the list. Ubuntu 26.04 LTS also works: the 4.14 installer prints a warning that the OS is not recommended, then carries on. This writeup used 26.04.1. If you want a supported setup from the start, use 24.04.
+
+*The "download" button on ubuntu.com now serves 26.04. For 24.04, pick it from the releases page.*
+
+### Download the ISO to Proxmox
+The VM does not exist yet, so the image goes onto Proxmox and is attached to the VM like a virtual CD.
+
+1. Copy the link to the Ubuntu Server `.iso` from [ubuntu.com/download/server](https://ubuntu.com/download/server) (right-click the button, then *Copy link address*).
+
+2. In Proxmox, expand the node, click the **local** storage, then *ISO Images -> Download from URL*.
+
+3. Paste the link, click *Query URL*, then *Download*. Wait for `TASK OK`.
+
+4. If *Query URL* fails, download the file on your PC and use *Upload* instead.
+
+### Create the VM
+Click *Create VM* and use the following settings.
+
+|Tab|Setting|
+|---|-------|
+|General|ID `<WAZUH_ID>`, name `wazuh`|
+|OS|The Ubuntu ISO, type Linux|
+|System|Machine `q35`, tick **Qemu Agent**|
+|Disks|60GB, VirtIO SCSI single|
+|CPU|4 cores, type `host`|
+|Memory|8192MB, **untick Ballooning**|
+|Network|`vmbr0`, VirtIO, **Firewall unticked**|
+
+Afterwards, go to *Options -> Start at boot* and set it to **Yes**. Give it a later *Start/Shutdown order* than your other guests, since Wazuh takes a few minutes to start after a reboot. Reserve `<WAZUH_IP>` in your router as well.
+
+### Install Ubuntu
+Start the VM, open the *Console* and work through the installer.
+
+1. **Network:** edit the interface, set IPv4 to *Manual* with your subnet, address `<WAZUH_IP>`, gateway `<ROUTER_IP>` and nameserver `1.1.1.1`. Keep it off Pi-hole, like the other infrastructure.
+
+2. **Storage:** use the guided layout. See the next section about the volume size.
+
+3. **SSH:** leave *Install OpenSSH server* **unticked**, to match a no-SSH setup. Use the Proxmox console instead.
+
+4. **Extras:** pick no snaps.
+
+5. After the first reboot, remove the ISO under *Hardware -> CD/DVD Drive*.
+
+### Use All of the Disk
+Ubuntu's guided LVM install often leaves about half the disk unallocated. A 60GB disk ended up with a 29GB root volume, and the Wazuh installer then failed with a disk-full error while unpacking the dashboard. Check and fix it **before** installing Wazuh.
+```bash
+df -h /
+sudo vgs
+```
+If `VFree` shows free space in the volume group, extend the volume and filesystem together. This is safe on a mounted disk.
+```bash
+sudo lvextend -r -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+df -h /
+```
+`df -h /` should now show most of the disk.
+
+### Get a Console You Can Paste Into
+The default Proxmox VM console (noVNC) is graphical and cannot paste text. A serial console can.
+
+1. In the VM, log in and enable a login on the serial port.
+```bash
+sudo systemctl enable --now serial-getty@ttyS0
+sudo poweroff
+```
+
+2. In the Proxmox node *Shell*, add a serial port (this needs the VM to be off) and start it again.
+```bash
+qm set <WAZUH_ID> -serial0 socket
+qm start <WAZUH_ID>
+```
+
+3. Select the VM, click the small arrow next to *Console*, and choose **xterm.js**. Press Enter to get a login prompt. Paste with **Ctrl+Shift+V**.
+
+### Prepare the VM
+```bash
+sudo apt update && sudo apt full-upgrade -y
+sudo apt install -y qemu-guest-agent curl
+sudo systemctl enable --now qemu-guest-agent
+timedatectl
+```
+`timedatectl` should report that the clock is synchronized, because the installer's certificates are time-bound. Take a snapshot named `ubuntu-clean` before installing Wazuh.
+
+### Install Wazuh
+Use the stable 4.x installer. A 5.x release candidate also exists on a staging server, which this setup does not use.
+```bash
+cd ~
+curl -sO https://packages.wazuh.com/4.14/wazuh-install.sh
+sudo bash ./wazuh-install.sh -a
+```
+- It takes about 5 to 10 minutes. Do not interrupt it.
+- On Ubuntu 26.04 it prints a warning that the OS is not recommended, then continues.
+- At the end it prints the dashboard address and an `admin` login. The console cannot scroll back far, so run the installer inside the xterm.js window or read the password from the archive afterwards.
+- If an install fails part-way, it cleans up after itself. Fix the cause (usually disk space), delete the leftover `wazuh-install-files.tar`, and run it again.
+
+### Find or Reset the Admin Password
+The installer writes every generated password into an archive in the folder you ran it from.
+```bash
+cd ~
+sudo tar -O -xvf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt | grep -A1 "indexer_username: 'admin'"
+```
+Copy it into a password manager. If you cannot log in (often a mistyped `0`, `O`, `1` or `l`), set a password you choose with Wazuh's password tool.
+```bash
+curl -sO https://packages.wazuh.com/4.14/wazuh-passwords-tool.sh
+sudo bash wazuh-passwords-tool.sh -u admin -p '<YOUR_NEW_PASSWORD>'
+```
+The password must be 8 to 64 characters with an upper and a lower case letter, a number and a symbol from `.*+?-` only. A `!` is rejected. Wait a couple of minutes for the services to restart.
+
+### Verify
+1. Check that all three services are running.
+```bash
+sudo systemctl status wazuh-indexer wazuh-manager wazuh-dashboard --no-pager | grep -E "●|Active"
+```
+
+2. Open `https://<WAZUH_IP>` in a browser. **Type `https://`**, because plain HTTP on port 443 gives "didn't send any data". Accept the self-signed certificate warning, and log in as `admin`.
+
+3. A "yellow" cluster health is normal on a single node.
+
+### Stop Accidental Upgrades
+Wazuh recommends disabling its package repository after installation, so a routine `apt upgrade` cannot move the stack to an incompatible version.
+```bash
+sudo sed -i "s/^deb/#deb/" /etc/apt/sources.list.d/wazuh.list
+sudo apt update
+```
+Then take a snapshot named `wazuh-installed`.
+
+### Enrol the Proxmox Node as an Agent
+Let the dashboard write the install command, so the agent version matches the server: *menu -> Server management -> Endpoints Summary -> Deploy new agent*, choose **Linux -> DEB amd64**, enter `<WAZUH_IP>` as the server address, and use the machine's hostname as the agent name.
+
+The generated command starts with `sudo`, and **a Proxmox node has no `sudo`**, because you are already root. Run the same command without it.
+
+1. Install the dependency the package needs but the node lacks.
+```bash
+apt update && apt install -y wget lsb-release
+```
+
+2. Download the package using the URL from the dashboard, then install it.
+```bash
+wget https://packages.wazuh.com/4.x/apt/pool/main/w/wazuh-agent/wazuh-agent_<AGENT_VERSION>_amd64.deb
+WAZUH_MANAGER='<WAZUH_IP>' WAZUH_AGENT_NAME='<HOSTNAME>' dpkg -i ./wazuh-agent_<AGENT_VERSION>_amd64.deb
+```
+
+3. Check the configuration **before** starting the service.
+```bash
+grep -A2 "<server>" /var/ossec/etc/ossec.conf
+```
+The address line must show `<WAZUH_IP>`. The environment variables are only applied the first time the package is configured, so a failed first attempt (for example the missing `lsb-release`) leaves the placeholder `MANAGER_IP` in the file, and the agent then fails with "Invalid server address". Fix it with:
+```bash
+sed -i 's|<address>MANAGER_IP</address>|<address><WAZUH_IP></address>|' /var/ossec/etc/ossec.conf
+```
+
+4. Start it and confirm it connected.
+```bash
+systemctl daemon-reload
+systemctl enable --now wazuh-agent
+systemctl status wazuh-agent --no-pager | grep -E "●|Active"
+grep -iE "connected to the server" /var/ossec/logs/ossec.log | tail -n 2
+```
+The log should show a connection to `<WAZUH_IP>` on port 1514, and the node should appear as **Active** in the Endpoints Summary within a couple of minutes.
+
+5. Remove the downloaded package.
+```bash
+rm -f wazuh-agent_*.deb*
+```
+
+*Proxmox 9 is built on Debian 13, so the agent runs the CIS Debian 13 benchmark against the node. Expect many "failed" checks, because the benchmark assumes a plain server and not a hypervisor. Use the results as reading material rather than a to-do list.*
+
+### Enrol a Windows 10 PC as an Agent
+The PC connects directly to the server over the LAN, so Tailscale is not involved.
+
+1. In the dashboard, go to *Server management -> Endpoints Summary -> Deploy new agent*, choose **Windows -> MSI**, enter `<WAZUH_IP>` as the server address, and use the PC's name as the agent name.
+
+2. Open **PowerShell as administrator** and paste the command the dashboard generates. It looks like this.
+```powershell
+Invoke-WebRequest -Uri https://packages.wazuh.com/4.x/windows/wazuh-agent-<AGENT_VERSION>.msi -OutFile ${env:tmp}\wazuh-agent; msiexec.exe /i ${env:tmp}\wazuh-agent /q WAZUH_MANAGER='<WAZUH_IP>' WAZUH_AGENT_NAME='<PC_NAME>'
+```
+
+3. Start the service.
+```powershell
+NET START WazuhSvc
+```
+
+4. Confirm it connected.
+```powershell
+Get-Service WazuhSvc
+Get-Content 'C:\Program Files (x86)\ossec-agent\ossec.log' -Tail 10
+```
+The service should be `Running`, the log should contain "Connected to the server", and the PC should show as **Active** in the dashboard.
+
+*As on Linux, the manager address is only applied on a fresh install. If the log shows `MANAGER_IP`, uninstall the agent under *Settings -> Apps* and run the command again.*
+
+*Windows 10 is past its end of support date unless extended security updates are in place, so expect findings about missing patches. A sleeping or powered-off PC shows as Disconnected and recovers when it wakes.*
+
+### Reach the Dashboard over Tailscale
+The dashboard is only reachable on the LAN. To open it from a phone, allow it in the [phone ACL](#restricting-the-phone-with-acls).
+
+1. Back up the current policy first.
+
+2. Add the dashboard to the phone rule's `dst` list.
+```jsonc
+"<WAZUH_IP>:443",
+```
+
+3. In the `tests` block, add it to `accept`, and add checks that the phone cannot reach the indexer or the manager API.
+```jsonc
+"accept": [ ..., "<WAZUH_IP>:443" ],
+"deny":   [ ..., "<WAZUH_IP>:9200", "<WAZUH_IP>:55000" ]
+```
+
+4. Save, then test on mobile data with Tailscale on: `https://<WAZUH_IP>`.
+
+*The dashboard has no built-in two-factor login and holds your security events, so use a strong admin password and never forward it on your router.*
+
+### What Not to Monitor
+- **Isolated machines such as a honeypot VM:** an agent needs a path to `<WAZUH_IP>` on ports 1514 and 1515, which would break the isolation. Monitor them from outside instead.
+- **Tiny containers:** agents are small, but each one adds work. Install them where the logs are valuable (the node, the PC) before adding the rest.
+
+### Maintenance
+- **Disk:** keep at least 20% free. The indexer warns, then stops writing, well before the disk fills. Check `df -h /` monthly.
+- **OS updates:** `sudo apt update && sudo apt upgrade -y`. With the Wazuh repository disabled, the Wazuh packages stay put. Upgrade them deliberately, following Wazuh's upgrade guide.
+- **Reboots:** the Wazuh services take a few minutes to start. A boot notification that says `running` does not mean the dashboard is ready yet.
+- **Backups:** a snapshot is not a backup. Use *Backup -> Backup now* to a different disk before upgrading.
+
+### Troubleshooting
+- **`sudo: command not found` on the Proxmox node:** you are already root. Run the command without `sudo`.
+
+- **`dpkg` says the agent depends on `lsb-release`:** run `apt install -y lsb-release`, then install the package again.
+
+- **Agent fails with "Invalid server address found: MANAGER_IP":** the placeholder is still in `/var/ossec/etc/ossec.conf`. Fix it with the `sed` command above and restart the agent.
+
+- **Wazuh installer fails with a disk-full error:** the root volume is too small. Extend it with `lvextend`, delete `wazuh-install-files.tar`, and run the installer again.
+
+- **Browser says "didn't send any data":** the URL needs `https://`.
+
+- **Login rejected:** check the username is `admin` and retype the password slowly. Otherwise reset it with the password tool. A `!` is not an allowed symbol.
+
+- **"Dashboard server is not ready yet":** wait a couple of minutes, or run `sudo systemctl restart wazuh-dashboard`.
+
+- **Cannot paste in the VM console:** use the xterm.js console after adding a serial port.
+
+- **Agent shows "Never connected":** check the address in `ossec.conf`, that ports 1514 and 1515 (TCP) are reachable from the agent, and the last lines of the agent's `ossec.log`.
+
+- **Cannot scroll back through installer output:** read the log with `sudo tail -n 40 /var/log/wazuh-install.log | less`.
+
 
 ## NOTIFICATIONS AND MONITORING
 
