@@ -1,7 +1,5 @@
 <img width="600" height="200" alt="github-header" src="https://github.com/user-attachments/assets/475c67df-cff3-4771-b01d-bc7c1f9c806b" />
 
-# Home Labs
-
 ## Tailscale VPN in a Proxmox LXC Container
 [Tailscale](https://tailscale.com/) is a mesh VPN built on WireGuard that lets you securely reach your home lab from anywhere, **without any port forwarding**. Every device makes outbound connections only, and Tailscale handles NAT traversal to connect them directly (or through an encrypted relay as a fallback).
 
