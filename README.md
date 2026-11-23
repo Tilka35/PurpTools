@@ -1314,6 +1314,352 @@ The dashboard is only reachable on the LAN. To open it from a phone, allow it in
 
 - **Cannot scroll back through installer output:** read the log with `sudo tail -n 40 /var/log/wazuh-install.log | less`.
 
+## qBittorrent with a Built-in VPN in a Proxmox Docker VM
+This runs [qBittorrent](https://www.qbittorrent.org/) inside the [`binhex/arch-qbittorrentvpn`](https://hub.docker.com/r/binhex/arch-qbittorrentvpn) Docker image, in its own VM on Proxmox. The image bundles qBittorrent with OpenVPN and WireGuard **client** software and a firewall that only lets traffic leave through the VPN tunnel (a built-in kill switch). It does not include a VPN service. You still need an account with a VPN provider (this writeup uses NordVPN), whose server the container connects to.
+
+*Placeholders used below. Replace them with your own values:*
+- `<QBIT_VM_ID>`: the ID of the VM (e.g. `160`)
+- `<QBIT_VM_IP>`: a free, static IP on your home network
+- `<ROUTER_IP>`: your router's IP
+- `<HOME_SUBNET>`: your home network range, e.g. `192.168.x.0/24`
+- `<VPN_USERNAME>` and `<VPN_PASSWORD>`: your VPN provider's credentials (see *Get Your VPN Credentials*)
+
+### How It Works
+```
+qBittorrent (inside the container)
+        |
+   container firewall: the only way out is the VPN tunnel
+        |
+   tun0 ---- encrypted tunnel ----> VPN provider's server ----> internet sees THAT address
+```
+1. The container starts with all outgoing traffic blocked.
+2. It opens one exception, for the connection to the VPN server named in your config file.
+3. Once the tunnel is up, traffic is allowed through it, and qBittorrent's traffic leaves that way.
+4. If the tunnel drops, there is no other route. qBittorrent stops instead of falling back to your home IP.
+5. The web interface stays reachable on your LAN, because `LAN_NETWORK` tells the firewall which local range may talk to the container's ports.
+
+The tunnel exists only inside the container's network. The VM's routing, Tailscale and your other guests are not affected.
+
+*This is a different job from Tailscale. Tailscale connects your own devices to each other. The container's VPN changes the public address that its traffic appears to come from.*
+
+### Requirements
+|Item|Notes|
+|---|---|
+|Proxmox VE node|Enough spare RAM and disk. Check `free -h` and `pvesm status` first|
+|VPN subscription|One that offers OpenVPN or WireGuard configs. NordVPN is used here|
+|Ubuntu Server 24.04 ISO|Uploaded to the node's *local* storage|
+|A pasteable console|See *Get a Console You Can Paste Into*|
+
+*Use the VPN in line with your provider's terms and the law where you live.*
+
+### Create the VM
+Click *Create VM* and use the following settings.
+
+|Tab|Setting|
+|---|-------|
+|General|ID `<QBIT_VM_ID>`, name `qbit`|
+|OS|The Ubuntu Server ISO, type Linux|
+|System|Machine `q35`|
+|Disks|20GB, VirtIO SCSI single (more if downloads will live here)|
+|CPU|2 cores, type `host`|
+|Memory|2048 to 4096MB|
+|Network|`vmbr0`, VirtIO, **Firewall unticked**|
+
+Afterwards, set *Options -> Start at boot* to **Yes**, with a *Start/Shutdown order* later than your other guests.
+
+### Install Ubuntu
+1. In the installer, set the network manually: IPv4 *Manual*, your subnet, address `<QBIT_VM_IP>`, gateway `<ROUTER_IP>`, and a nameserver such as `1.1.1.1`.
+
+2. Leave *Install OpenSSH server* **unticked**, to match a no-SSH setup.
+
+3. After the first reboot, remove the ISO under *Hardware -> CD/DVD Drive*.
+
+### Get a Console You Can Paste Into
+The default Proxmox VM console (noVNC) cannot paste, and it can also type the wrong character for some keys, which breaks URLs and commands. A serial console fixes both.
+
+1. In the VM, log in and start a login prompt on the serial port.
+```bash
+sudo agetty -L 115200 ttyS0 vt220
+```
+
+2. In the node *Shell*, add a serial port and do a **full shutdown and start** (a restart from inside the VM is not enough).
+```bash
+qm set <QBIT_VM_ID> -serial0 socket
+qm stop <QBIT_VM_ID> && qm start <QBIT_VM_ID>
+```
+
+3. Select the VM, click the small arrow next to *Console*, choose **xterm.js**, press Enter, and log in. Paste with **Ctrl+Shift+V**.
+
+4. Make the serial login permanent. Run this in the xterm.js console.
+```bash
+sudo systemctl enable serial-getty@ttyS0
+```
+
+*If the xterm.js window stays blank on "starting serial terminal", nothing is running a login on the serial port yet. Run the `agetty` command from step 1.*
+
+### Fix DNS
+If `apt` fails with "Temporary failure resolving", the static network config has no DNS servers. The installer saves the address and gateway, but not always the nameservers.
+
+1. Check what is configured.
+```bash
+ip route
+resolvectl dns
+sudo netplan get
+```
+`netplan get` should include a `nameservers` section. If not, add one.
+```bash
+sudo netplan set 'ethernets.ens18.nameservers.addresses=[1.1.1.1,1.0.0.1]'
+sudo netplan apply
+```
+The interface name (`ens18` here) may differ, so check it with `ip a`.
+
+2. Confirm lookups work, then update the system.
+```bash
+ping -c 2 ubuntu.com
+sudo apt update && sudo apt full-upgrade -y
+```
+*The upgrade command is `full-upgrade`. There is no `upgrade-all`.*
+
+*Use a public resolver (or your router) here, not Pi-hole, so the VM does not depend on another guest to start.*
+
+### Install Docker
+Docker's official script installs the current engine and the Compose plugin. Read it before running it as root.
+```bash
+curl -fsSL https://get.docker.com -o get-docker.sh
+less get-docker.sh
+```
+Press `q` to leave `less`, then install.
+```bash
+sudo sh get-docker.sh
+sudo systemctl enable --now docker
+sudo docker --version
+sudo docker run --rm hello-world
+rm get-docker.sh
+```
+The `hello-world` container prints "Hello from Docker!", which proves the engine, DNS and internet all work.
+
+*Every Docker command here uses `sudo`. Adding a user to the `docker` group would work too, but that group is effectively root access.*
+
+### Create the Folders
+```bash
+sudo mkdir -p /opt/qbit/config/openvpn /opt/qbit/data
+sudo chown -R 1000:1000 /opt/qbit
+df -h /
+```
+- `/opt/qbit/config` holds qBittorrent's settings and your VPN config file.
+- `/opt/qbit/data` is where downloads go. A share from another machine can be mounted here later.
+- `1000:1000` matches the user the container runs as (`PUID` and `PGID`), so it can write to them.
+
+### Get Your VPN Credentials
+The container needs two different things from your VPN provider, and they come from different places:
+```
+.ovpn config file  -> WHERE to connect (server address, protocol, certificates)
+username + password -> WHO you are (stored in an env file, see below)
+```
+This section covers the second one.
+
+#### Use the service credentials, not your account login
+For NordVPN, the credentials for manual (non-app) connections are **separate from your Nord Account email and password**. Using your normal login makes authentication fail, which shows up as `AUTH_FAILED` in the container log. Other providers do the same in different ways, so check your provider's manual setup page.
+
+#### Find them
+1. Log in to your Nord Account and click **NordVPN**.
+
+2. Scroll down to **Advanced Settings** and click **Set up NordVPN manually**.
+
+3. Open the **Service credentials** tab. It shows a **Username** and a **Password**. Copy both exactly, with no extra spaces at either end.
+
+4. Save them in a password manager now. Treat them like any other password.
+
+*The names of these menus may change over time. If you cannot find them, search your provider's documentation for "manual setup" or "service credentials".*
+
+#### Store them on the VM
+The container reads them from an environment file, `/opt/qbit/vpn.env`. This keeps them out of your shell history and out of the `docker run` command, and out of anything you might later commit to GitHub.
+
+1. Create the file. Replace the two values first. The quoted `'EOF'` stops the shell from interpreting special characters (`$`, `!`, quotes, backslashes), so a password containing them is saved as typed.
+```bash
+sudo tee /opt/qbit/vpn.env > /dev/null << 'EOF'
+VPN_USER=<VPN_USERNAME>
+VPN_PASS=<VPN_PASSWORD>
+EOF
+```
+
+2. Make it readable by root only.
+```bash
+sudo chown root:root /opt/qbit/vpn.env
+sudo chmod 600 /opt/qbit/vpn.env
+```
+
+3. Check it **without printing the password**. This shows only the variable names.
+```bash
+sudo cut -d= -f1 /opt/qbit/vpn.env
+sudo ls -l /opt/qbit/vpn.env
+```
+The first command should print `VPN_USER` and `VPN_PASS`. The second should show `-rw-------` and `root root`.
+
+#### Rules for the file
+- **No quotes around the values.** Docker's env-file format uses everything after the `=` literally, including quote marks and trailing spaces. A password written as `"abc"` is sent as `"abc"`, quotes included.
+- **No trailing spaces.** They become part of the value. If authentication fails and you are sure the password is right, check for a stray space at the end of a line.
+- **One variable per line**, and no blank `VPN_PASS=` line left over from editing.
+- **Do not use `docker run -e VPN_PASS=...`.** That puts the password in your shell history and in the process list.
+
+#### How the container uses them
+- The values are read **when the container is created**, not while it runs. Editing the file does nothing to a container that already exists.
+- Anyone with root on the VM can still read them through `sudo docker inspect qbittorrentvpn`, whichever method you use.
+- The image uses them to log in to the VPN server named in the `.ovpn` file.
+
+#### Change or rotate them
+1. Update `/opt/qbit/vpn.env` (use the same `tee` command, or edit with `sudo nano`).
+
+2. **Recreate** the container, because `docker restart` does not reread the file. Your settings and downloads stay in `/opt/qbit`.
+```bash
+sudo docker rm -f qbittorrentvpn
+```
+Then run the container again with the command in *Run the Container*.
+
+3. If you think they have leaked, regenerate them on the same provider page if it offers that, then update the file and recreate the container.
+
+#### Keep them out of GitHub
+- Never paste the real values into a README, a script or a screenshot. Use placeholders like `<VPN_USERNAME>`.
+- If you keep any of this in a repository, add `vpn.env` and `*.ovpn` to `.gitignore`. The `.ovpn` file contains certificates and a server address that identify your account.
+- A committed secret stays in the repository history even after you delete the file, so if it happens, change the credentials.
+
+#### Other providers
+For providers the image automates, set `VPN_PROV` to its name (the Docker Hub page lists them). For anything else, use `VPN_PROV=custom` as below, and supply the provider's config file. Some providers use a username and password, others use only a key or certificate in the config file.
+
+### Add the VPN Config File
+1. In your provider's manual setup page, download **one** OpenVPN config for a server near you. For NordVPN this is the **OpenVPN configuration files** tab, with a *Download UDP* or *Download TCP* button per server. UDP is faster and is the usual choice. TCP is slower but gets through restrictive networks.
+
+2. Open the file in a text editor on your PC and copy **all** of it.
+
+3. In the VM console, paste it in. Type the first line, paste the contents, then type `EOF` on its own line.
+```bash
+sudo tee /opt/qbit/config/openvpn/vpn.ovpn > /dev/null << 'EOF'
+```
+
+4. Fix the ownership and check the result.
+```bash
+sudo chown 1000:1000 /opt/qbit/config/openvpn/vpn.ovpn
+sudo grep -c . /opt/qbit/config/openvpn/vpn.ovpn
+sudo grep -E "^(remote|proto)" /opt/qbit/config/openvpn/vpn.ovpn
+```
+The file should have many lines, and show a `remote` line with a server and port, and a `proto` line.
+
+5. Keep **exactly one** `.ovpn` file in that folder. With several, the container has to choose between them.
+
+### Run the Container
+```bash
+sudo docker run -d \
+  --name=qbittorrentvpn \
+  --restart=unless-stopped \
+  --cap-add=NET_ADMIN \
+  -p 8080:8080 \
+  -p 6881:6881 \
+  -p 6881:6881/udp \
+  -v /opt/qbit/config:/config \
+  -v /opt/qbit/data:/data \
+  -v /etc/localtime:/etc/localtime:ro \
+  --env-file /opt/qbit/vpn.env \
+  -e VPN_ENABLED=yes \
+  -e VPN_PROV=custom \
+  -e VPN_CLIENT=openvpn \
+  -e ENABLE_PRIVOXY=no \
+  -e LAN_NETWORK=<HOME_SUBNET> \
+  -e NAME_SERVERS=1.1.1.1,1.0.0.1 \
+  -e WEBUI_PORT=8080 \
+  -e UMASK=002 \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  binhex/arch-qbittorrentvpn:latest
+```
+The first run downloads the image, which takes a minute or two. What the main options do:
+- `--cap-add=NET_ADMIN` lets the container create the tunnel and edit its own firewall rules.
+- `--restart=unless-stopped` brings it back after a VM or node reboot.
+- `LAN_NETWORK` tells its firewall which range may reach the web interface. It must include the address your requests come from.
+- `NAME_SERVERS` are the DNS servers used inside the tunnel, so name lookups go through the VPN too.
+- `ENABLE_PRIVOXY=no` avoids exposing an extra proxy port.
+
+*For WireGuard, replace `--cap-add=NET_ADMIN` with `--privileged=true` and `--sysctl="net.ipv4.conf.all.src_valid_mark=1"`, set `VPN_CLIENT=wireguard`, and put the provider's WireGuard config in `/opt/qbit/config/wireguard/` instead of the OpenVPN folder.*
+
+### Watch It Connect
+```bash
+sudo docker logs -f qbittorrentvpn
+```
+Look for OpenVPN starting, a tunnel address being assigned, and then qBittorrent starting. The line "Initialization Sequence Completed" is the one you want. Press **Ctrl+C** to leave the log view, which does not stop the container.
+
+### Prove the VPN Works
+```bash
+sudo docker exec qbittorrentvpn curl -s --max-time 10 https://ifconfig.io
+curl -s --max-time 10 https://ifconfig.io
+```
+- The first command (through the container) must show a **VPN provider address**.
+- The second (the VM itself) shows your **home IP**.
+- If the first shows your home IP, stop. The traffic is not going through the tunnel.
+
+Then test the kill switch. Stop the tunnel process and check that the container loses internet access.
+```bash
+sudo docker exec qbittorrentvpn pkill openvpn
+sudo docker exec qbittorrentvpn curl -s --max-time 10 https://ifconfig.io
+```
+The second command should fail or time out. It may reconnect by itself after a short while, which is also normal.
+
+For leaks, also check the address and DNS on a site such as ipleak.net from a browser that goes through the container, if you route one through it.
+
+### Log in to the Web Interface
+1. From a PC on your LAN, open `http://<QBIT_VM_IP>:8080`. Use `http://`, not `https://`.
+
+2. The username is `admin`. Newer qBittorrent versions generate a temporary password, which you can find in the log.
+```bash
+sudo grep -i password /opt/qbit/config/supervisord.log
+```
+
+3. Go to *Tools -> Options -> WebUI* and set your own password straight away.
+
+4. In *Options -> Downloads*, check that files save to `/data`.
+
+### Reach It over Tailscale
+1. Add the web interface to the phone rule in your [Tailscale ACL](#restricting-the-phone-with-acls), and to the `tests` block.
+```jsonc
+"<QBIT_VM_IP>:8080",
+```
+
+2. Test on mobile data with Tailscale on: `http://<QBIT_VM_IP>:8080`.
+
+*Do not forward any ports on your router. The VPN connection is outbound only. Incoming peer connections depend on the provider supporting port forwarding, which not every provider does. Without it, downloads still work, but you may see fewer connections and lower speeds.*
+
+### Maintenance
+- **Update the container.** Settings and downloads live in `/opt/qbit`, so they survive. Run the `docker run` command again afterwards.
+```bash
+sudo docker pull binhex/arch-qbittorrentvpn:latest
+sudo docker rm -f qbittorrentvpn
+```
+Consider pinning a version tag instead of `latest`, so an update cannot change things unexpectedly.
+
+- **Update the VM.** `sudo apt update && sudo apt full-upgrade -y`.
+
+- **Back up** `/opt/qbit/config`, and snapshot the VM once it works. A snapshot is not a backup of your downloads.
+
+- **Disk space.** Check `df -h /` regularly, since downloads fill the disk.
+
+### Troubleshooting
+- **`apt` says "Temporary failure resolving":** the VM has no DNS servers. See *Fix DNS*.
+
+- **`curl` says "Could not resolve host: https", or `bash` says `//get.docker.com: No such file`:** the console typed the wrong character for `:`. Use the xterm.js console and paste.
+
+- **The xterm.js window stays on "starting serial terminal":** nothing is running a login on the serial port. Run the `agetty` command in *Get a Console You Can Paste Into*.
+
+- **`AUTH_FAILED` in the log:** the credentials are wrong. Check that you used the **service credentials** and not your account login, that there are no quotes or trailing spaces in `vpn.env`, and recreate the container after any change.
+
+- **The container exits straight away:** read `sudo docker logs qbittorrentvpn`. Common causes are a missing `.ovpn` file, more than one `.ovpn` file, or wrong ownership on `/opt/qbit`.
+
+- **The VPN works but the web interface will not load:** check the container is `Up` with `sudo docker ps`, that the URL starts with `http://`, and that `LAN_NETWORK` covers the address you are connecting from.
+
+- **The web interface loads on the LAN but not from the phone:** the ACL does not include `<QBIT_VM_IP>:8080`.
+
+- **The kill switch test shows your home IP:** the traffic is not going through the tunnel. Stop the container and check the config before using it.
+
+- **Downloads are slow or have few connections:** try another server (UDP, closer to you), and check whether your provider supports port forwarding.
+
+- **Settings changed in `vpn.env` have no effect:** the container reads them at creation. Recreate it.
 
 ## NOTIFICATIONS AND MONITORING
 
